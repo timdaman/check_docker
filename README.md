@@ -1,4 +1,4 @@
-![Travis-ci-status](https://travis-ci.org/timdaman/check_docker.svg?branch=master)
+[![Build Status](https://travis-ci.org/timdaman/check_docker.svg?branch=master)](https://travis-ci.org/timdaman/check_docker)
 # check_docker
 This a a nagios/NRPE compatible plugin for checking docker containers. So far you can use it to check
 
