@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-from sys import argv
-
 __author__ = 'Tim Laurence'
-from http.client import HTTPConnection
-from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
-import argparse
-import json
-import socket
-from functools import lru_cache
+__copyright__ = "Copyright 2016"
+__credits__ = ['Tim Laurence']
+__license__ = "GPL"
+__version__ = "1.0"
 
 
 '''
@@ -18,6 +14,17 @@ Requires Python 3
 Note: I really would have preferred to have used requests for all the network connections but that would have added a
 dependency.
 '''
+
+from sys import argv
+from http.client import HTTPConnection
+from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
+import argparse
+import json
+import socket
+from functools import lru_cache
+
+
+
 
 DEFAULT_SOCKET = '/var/run/docker.sock'
 DEFAULT_TIMEOUT = 10.0
