@@ -5,7 +5,6 @@ __credits__ = ['Tim Laurence']
 __license__ = "GPL"
 __version__ = "1.0"
 
-
 '''
 nrpe compatible check for docker containers.
 
@@ -22,8 +21,7 @@ import argparse
 import json
 import socket
 from functools import lru_cache
-
-
+import re
 
 
 DEFAULT_SOCKET = '/var/run/docker.sock'
@@ -99,7 +97,6 @@ def parse_thresholds(spec):
 
 
 def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min, max, units=''):
-
     performance_data.append("{}_{}={}{};{};{};{};{}".format(container, short_name, value, units, warn, crit, min, max))
 
     if value >= crit:
@@ -122,18 +119,28 @@ def get_url(url):
 def get_container_info(name, type='json'):
     return get_url(daemon + '/containers/{container}/{type}'.format(container=name, type=type))
 
+
 def get_status(container):
     return get_container_info(container)['State']['Status']
 
+
 def get_containers(names):
-    if names == 'all':
-            return [x['Names'][0][1:] for x in get_url(daemon + '/containers/json?all=1')]
+    all = [x['Names'][0][1:] for x in get_url(daemon + '/containers/json?all=1')]
+    if 'all' in names:
+        return all
     else:
-        return names
+        filtered = []
+        for found in all:
+            for matcher in names:
+                if re.fullmatch(matcher, found):
+                    filtered.append(found)
+        return filtered
+
 
 def set_rc(new_rc):
     global rc
     rc = new_rc if new_rc > rc else rc
+
 
 def ok(message):
     set_rc(OK_RC)
@@ -158,7 +165,6 @@ def unknown(message):
 # Checks
 #############################################################################################
 def check_memory(container, warn, crit, units):
-
     assert units in UNIT_ADJUSTMENTS, "Invalid memory units"
 
     status = get_status(container)
@@ -167,7 +173,6 @@ def check_memory(container, warn, crit, units):
     if status == 'running':
         inspection = get_container_info(container, 'stats?stream=0')
 
-
         if units == '%':
             max = 100
             usage = int(100 * inspection['memory_stats']['usage'] / inspection['memory_stats']['limit'])
@@ -175,7 +180,8 @@ def check_memory(container, warn, crit, units):
             max = inspection['memory_stats']['limit'] / UNIT_ADJUSTMENTS[units]
             usage = inspection['memory_stats']['usage'] / UNIT_ADJUSTMENTS[units]
 
-        evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units=units, name='memory', short_name='mem', min=0, max=max)
+        evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units=units, name='memory',
+                                    short_name='mem', min=0, max=max)
 
 
 def check_status(container, desired_state):
@@ -190,8 +196,8 @@ def check_restarts(container, warn, crit, units=None):
 
     restarts = int(inspection['RestartCount'])
     graph_padding = 2
-    evaluate_numeric_thresholds(container=container, value=restarts, warn=warn, crit=crit, name='restarts', short_name='re', min=0, max=graph_padding)
-
+    evaluate_numeric_thresholds(container=container, value=restarts, warn=warn, crit=crit, name='restarts',
+                                short_name='re', min=0, max=graph_padding)
 
 
 def process_args(args):
@@ -228,8 +234,8 @@ def process_args(args):
                         action='store',
                         nargs='+',
                         type=str,
-                        default='all',
-                        help='Name of container(s) to check. If omitted all containers are checked. (default: %(default)s)')
+                        default=['all'],
+                        help='One or more RegEx that match the names of the container(s) to check. If omitted all containers are checked. (default: %(default)s)')
 
     # Memory
     parser.add_argument('--memory',
@@ -271,18 +277,20 @@ def process_args(args):
 
     return parsed_args
 
+
 def print_results():
-        if len(messages) > 0:
-            if len(performance_data) > 0:
-                print(messages[0] + '|' + performance_data[0])
-            else:
-                print(messages[0])
-            for message in messages[1:]:
-                print(message)
-            if len(performance_data) > 1:
-                print('|', end='')
-                for data in performance_data[1:]:
-                    print(data)
+    if len(messages) > 0:
+        if len(performance_data) > 0:
+            print(messages[0] + '|' + performance_data[0])
+        else:
+            print(messages[0])
+        for message in messages[1:]:
+            print(message)
+        if len(performance_data) > 1:
+            print('|', end='')
+            for data in performance_data[1:]:
+                print(data)
+
 
 if __name__ == '__main__':
 
@@ -296,21 +304,24 @@ if __name__ == '__main__':
 
         containers = get_containers(args.containers)
 
-        for container in containers:
-            # Check status
-            if args.status:
-                check_status(container, args.status)
-                checks += 1
+        if len(containers) == 0:
+            for container in containers:
+                # Check status
+                if args.status:
+                    check_status(container, args.status)
+                    checks += 1
 
-            # Check memory usage
-            if args.memory:
-                check_memory(container, *parse_thresholds(args.memory))
-                checks += 1
+                # Check memory usage
+                if args.memory:
+                    check_memory(container, *parse_thresholds(args.memory))
+                    checks += 1
 
-            # Check restart count
-            if args.restarts:
-                check_restarts(container, *parse_thresholds(args.restarts))
-                checks += 1
+                # Check restart count
+                if args.restarts:
+                    check_restarts(container, *parse_thresholds(args.restarts))
+                    checks += 1
+        else:
+            unknown("No containers names found matching criteria")
     except Exception as e:
         unknown("Exception raised during check: {}".format(str(e)))
     if checks == 0:

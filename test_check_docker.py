@@ -240,6 +240,13 @@ class TestCheckDocker(unittest.TestCase):
         result = check_docker.process_args(args=args)
         self.assertListEqual(result.containers, ['non-default'])
 
+    def test_args_containers_blank(self):
+        args = ('--containers',)
+        try:
+            self.assertRaises(argparse.ArgumentError, check_docker.process_args, args=args)
+        except SystemExit:  # Argument failures exit as well
+            pass
+
     def test_args_timeout(self):
         args = ('--timeout', '9999')
         result = check_docker.process_args(args=args)
@@ -273,6 +280,13 @@ class TestCheckDocker(unittest.TestCase):
         except SystemExit:  # Argument failures exit as well
             pass
 
+    def test_missing_check(self):
+        args = ('--connection', 'non-default', '--secure-connection', 'non-default')
+        try:
+            self.assertRaises(argparse.ArgumentError, check_docker.process_args, args)
+        except SystemExit:  # Argument failures exit as well
+            pass
+
     def test_get_containers(self):
         json_results = [
             {'Names': ['/thing1']},
@@ -283,8 +297,12 @@ class TestCheckDocker(unittest.TestCase):
             self.assertListEqual(container_list, ['thing1', 'thing2'])
 
         with patch('check_docker.get_url', return_value=json_results):
+            container_list = check_docker.get_containers(['thing.*'])
+            self.assertListEqual(container_list, ['thing1', 'thing2'])
+
+        with patch('check_docker.get_url', return_value=json_results):
             container_list = check_docker.get_containers(['foo'])
-            self.assertListEqual(container_list, ['foo'])
+            self.assertListEqual(container_list, [])
 
 if __name__ == '__main__':
     unittest.main()
