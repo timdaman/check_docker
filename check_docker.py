@@ -224,7 +224,6 @@ def process_args(args):
 
     # Container name
     parser.add_argument('--containers',
-                        required=True,
                         dest='containers',
                         action='store',
                         nargs='+',
