@@ -226,7 +226,7 @@ def process_args(args):
     parser.add_argument('--containers',
                         dest='containers',
                         action='store',
-                        nargs='*',
+                        nargs='+',
                         type=str,
                         default='all',
                         help='Name of container(s) to check. If omitted all containers are checked. (default: %(default)s)')
@@ -288,6 +288,7 @@ if __name__ == '__main__':
 
     #############################################################################################
     args = process_args(argv[1:])
+    checks = 0
 
     # Here is where all the work happens
     #############################################################################################
@@ -299,16 +300,20 @@ if __name__ == '__main__':
             # Check status
             if args.status:
                 check_status(container, args.status)
+                checks += 1
 
             # Check memory usage
             if args.memory:
                 check_memory(container, *parse_thresholds(args.memory))
+                checks += 1
 
             # Check restart count
             if args.restarts:
                 check_restarts(container, *parse_thresholds(args.restarts))
+                checks += 1
     except Exception as e:
         unknown("Exception raised during check: {}".format(str(e)))
-
+    if checks == 0:
+        unknown("No checks specified.")
     print_results()
     exit(rc)
