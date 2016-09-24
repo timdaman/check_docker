@@ -6,4 +6,6 @@ python:
 install:
   - pip install codeclimate-test-reporter coverage
 # command to run tests
-script: coverage run ./test_check_docker.py
+script:
+  - coverage run ./test_check_docker.py
+  - codeclimate-test-reporter
