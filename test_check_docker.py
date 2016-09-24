@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime, timezone, timedelta
 
 __author__ = 'tim'
 
@@ -220,6 +221,40 @@ class TestCheckDocker(unittest.TestCase):
                 check_docker.check_restarts(container='container', warn=1, crit=2)
                 self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
+    def test_check_uptime1(self):
+        now_string = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        now_string += ".0000000000Z"
+        json_results = {
+            'State': {'StartedAt': now_string},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_uptime(container='container', warn=10, crit=5)
+            self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
+    def test_check_uptime2(self):
+        ten = timedelta(seconds=10)
+        then = datetime.now(tz=timezone.utc) - ten
+        now_string = then.strftime("%Y-%m-%dT%H:%M:%S")
+        now_string += ".0000000000Z"
+        json_results = {
+            'State': {'StartedAt': now_string},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_uptime(container='container', warn=20, crit=1)
+            self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+
+    def test_check_uptime3(self):
+        ten = timedelta(seconds=10)
+        then = datetime.now(tz=timezone.utc) - ten
+        now_string = then.strftime("%Y-%m-%dT%H:%M:%S")
+        now_string += ".0000000000Z"
+        json_results = {
+            'State': {'StartedAt': now_string},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_uptime(container='container', warn=2, crit=1)
+            self.assertEqual(check_docker.rc, check_docker.OK_RC)
+
     def test_args_restart(self):
         args = ('--restarts', 'non-default')
         result = check_docker.process_args(args=args)
@@ -281,11 +316,14 @@ class TestCheckDocker(unittest.TestCase):
             pass
 
     def test_missing_check(self):
-        args = ('--connection', 'non-default', '--secure-connection', 'non-default')
-        try:
-            self.assertRaises(argparse.ArgumentError, check_docker.process_args, args)
-        except SystemExit:  # Argument failures exit as well
-            pass
+        args = tuple()
+        result = check_docker.process_args(args=args)
+        self.assertTrue(check_docker.no_checks_present(result))
+
+    def test_present_check(self):
+        args = ('--status', 'running')
+        result = check_docker.process_args(args=args)
+        self.assertFalse(check_docker.no_checks_present(result))
 
     def test_get_containers(self):
         json_results = [
@@ -303,6 +341,7 @@ class TestCheckDocker(unittest.TestCase):
         with patch('check_docker.get_url', return_value=json_results):
             container_list = check_docker.get_containers(['foo'])
             self.assertListEqual(container_list, [])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from datetime import datetime, timezone
+
 __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2016"
 __credits__ = ['Tim Laurence']
@@ -96,15 +98,29 @@ def parse_thresholds(spec):
     return warn, crit, units
 
 
-def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min, max, units=''):
-    performance_data.append("{}_{}={}{};{};{};{};{}".format(container, short_name, value, units, warn, crit, min, max))
+def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min=None, max=None, units='',
+                                greater_than=True):
+    perf_string = "{}_{}={}{};{};{}".format(container, short_name, value, units, warn, crit)
+    if min is not None:
+        perf_string += ';{}'.format(min)
+        if max is not None:
+            perf_string += ';{}'.format(max)
+    performance_data.append(perf_string)
 
-    if value >= crit:
-        critical("{} {} is {}{}".format(container, name, value, units))
-    elif value >= warn:
-        warning("{} {} is {}{}".format(container, name, value, units))
+    if greater_than:
+        if value >= crit:
+            critical("{} {} is {}{}".format(container, name, value, units))
+        elif value >= warn:
+            warning("{} {} is {}{}".format(container, name, value, units))
+        else:
+            ok("{} {} is {}{}".format(container, name, value, units))
     else:
-        ok("{} {} is {}{}".format(container, name, value, units))
+        if value <= crit:
+            critical("{} {} is {}{}".format(container, name, value, units))
+        elif value <= warn:
+            warning("{} {} is {}{}".format(container, name, value, units))
+        else:
+            ok("{} {} is {}{}".format(container, name, value, units))
 
 
 @lru_cache()
@@ -132,7 +148,7 @@ def get_containers(names):
         filtered = []
         for found in all:
             for matcher in names:
-                if re.fullmatch(matcher, found):
+                if re.match("^{}$".format(matcher), found):
                     filtered.append(found)
         return filtered
 
@@ -189,6 +205,20 @@ def check_status(container, desired_state):
         critical("{} state is not {}".format(container, desired_state))
     else:
         ok("{} status is {}".format(container, desired_state))
+
+
+def check_uptime(container, warn, crit, units=None):
+    inspection = get_container_info(container)['State']['StartedAt']
+    only_secs = inspection.split('.')[0]
+    start = datetime.strptime(only_secs, "%Y-%m-%dT%H:%M:%S")
+    start = start.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    uptime = (now - start).seconds
+
+    graph_padding = 2
+    evaluate_numeric_thresholds(container=container, value=uptime, units='s', warn=warn, crit=crit,
+                                name='uptime',
+                                short_name='up', min=0, max=graph_padding, greater_than=False)
 
 
 def check_restarts(container, warn, crit, units=None):
@@ -252,6 +282,13 @@ def process_args(args):
                         type=str,
                         help='Desired container status (running, exited, etc). (default: %(default)s)')
 
+    # Age
+    parser.add_argument('--uptime',
+                        dest='uptime',
+                        action='store',
+                        type=str,
+                        help='Minimum container uptime in seconds. Used to rapid restarting. Should be less than you monitoring poll interval.')
+
     # Restart
     parser.add_argument('--restarts',
                         dest='restarts',
@@ -278,53 +315,58 @@ def process_args(args):
     return parsed_args
 
 
+def no_checks_present(parsed_args):
+    # Look for all functions whose name starts with 'check_'
+    checks = [key[6:] for key in globals().keys() if key.startswith('check_')]
+    return all(getattr(parsed_args, check) is None for check in checks)
+
+
 def print_results():
-    if len(messages) > 0:
-        if len(performance_data) > 0:
-            print(messages[0] + '|' + performance_data[0])
-        else:
-            print(messages[0])
-        for message in messages[1:]:
-            print(message)
-        if len(performance_data) > 1:
-            print('|', end='')
-            for data in performance_data[1:]:
-                print(data)
+    messages_concat = '; '.join(messages)
+    perfdata_concat = ' '.join(performance_data)
+    if len(performance_data) > 0:
+        print(messages_concat + '|' + perfdata_concat)
+    else:
+        print(messages_concat)
 
 
 if __name__ == '__main__':
 
     #############################################################################################
     args = process_args(argv[1:])
-    checks = 0
 
-    # Here is where all the work happens
-    #############################################################################################
-    try:
-
-        containers = get_containers(args.containers)
-
-        if len(containers) == 0:
-            for container in containers:
-                # Check status
-                if args.status:
-                    check_status(container, args.status)
-                    checks += 1
-
-                # Check memory usage
-                if args.memory:
-                    check_memory(container, *parse_thresholds(args.memory))
-                    checks += 1
-
-                # Check restart count
-                if args.restarts:
-                    check_restarts(container, *parse_thresholds(args.restarts))
-                    checks += 1
-        else:
-            unknown("No containers names found matching criteria")
-    except Exception as e:
-        unknown("Exception raised during check: {}".format(str(e)))
-    if checks == 0:
+    if no_checks_present(args):
         unknown("No checks specified.")
+    else:
+        # Here is where all the work happens
+        #############################################################################################
+        try:
+
+            containers = get_containers(args.containers)
+
+            if len(containers) == 0:
+                unknown("No containers names found matching criteria")
+            else:
+                for container in containers:
+
+                    # Check status
+                    if args.status:
+                        check_status(container, args.status)
+
+                    # Check memory usage
+                    if args.memory:
+                        check_memory(container, *parse_thresholds(args.memory))
+
+                    # Check uptime
+                    if args.uptime:
+                        check_uptime(container, *parse_thresholds(args.uptime))
+
+                    # Check restart count
+                    if args.restarts:
+                        check_restarts(container, *parse_thresholds(args.restarts))
+
+        except Exception as e:
+            unknown("Exception raised during check: {}".format(str(e)))
+
     print_results()
     exit(rc)
