@@ -3,5 +3,7 @@ python:
   - "3.3"
   - "3.4"
   - "3.5"
+install:
+  - pip install codeclimate-test-reporter coverage
 # command to run tests
-script: python3 ./test_check_docker.py
+script: coverage run ./test_check_docker.py

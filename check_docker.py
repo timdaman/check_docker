@@ -100,6 +100,7 @@ def parse_thresholds(spec):
 
 def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min=None, max=None, units='',
                                 greater_than=True):
+
     perf_string = "{}_{}={}{};{};{}".format(container, short_name, value, units, warn, crit)
     if min is not None:
         perf_string += ';{}'.format(min)
@@ -128,7 +129,6 @@ def get_url(url):
     response = better_urllib.open(url, timeout=timeout)
     bytes = response.read()
     body = bytes.decode('utf-8')
-    # TODO: Throw error when body.startswith('No such container: ')
     return json.loads(body)
 
 
@@ -141,7 +141,8 @@ def get_status(container):
 
 
 def get_containers(names):
-    all = [x['Names'][0][1:] for x in get_url(daemon + '/containers/json?all=1')]
+    containers_list = get_url(daemon + '/containers/json?all=1')
+    all = [x['Names'][0][1:] for x in containers_list]
     if 'all' in names:
         return all
     else:

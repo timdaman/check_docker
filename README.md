@@ -1,4 +1,6 @@
 [![Build Status](https://travis-ci.org/timdaman/check_docker.svg?branch=master)](https://travis-ci.org/timdaman/check_docker)
+[![Code Climate](https://codeclimate.com/github/timdaman/check_docker/badges/gpa.svg)](https://codeclimate.com/github/timdaman/check_docker)
+[![Test Coverage](https://codeclimate.com/github/timdaman/check_docker/badges/coverage.svg)](https://codeclimate.com/github/timdaman/check_docker/coverage)
 # check_docker
 This a a nagios/NRPE compatible plugin for checking docker containers. So far you can use it to check
 
