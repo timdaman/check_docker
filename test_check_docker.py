@@ -228,7 +228,7 @@ class TestCheckDocker(unittest.TestCase):
             'State': {'StartedAt': now_string},
         }
         with patch('check_docker.get_url', return_value=json_results):
-            check_docker.check_uptime(container='container', warn=10, crit=5)
+            check_docker.check_uptime(container_name='container', warn=10, crit=5)
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
     def test_check_uptime2(self):
@@ -240,7 +240,7 @@ class TestCheckDocker(unittest.TestCase):
             'State': {'StartedAt': now_string},
         }
         with patch('check_docker.get_url', return_value=json_results):
-            check_docker.check_uptime(container='container', warn=20, crit=1)
+            check_docker.check_uptime(container_name='container', warn=20, crit=1)
             self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
     def test_check_uptime3(self):
@@ -252,7 +252,7 @@ class TestCheckDocker(unittest.TestCase):
             'State': {'StartedAt': now_string},
         }
         with patch('check_docker.get_url', return_value=json_results):
-            check_docker.check_uptime(container='container', warn=2, crit=1)
+            check_docker.check_uptime(container_name='container', warn=2, crit=1)
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
     def test_args_restart(self):

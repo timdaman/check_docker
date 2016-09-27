@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+from copy import copy
 from datetime import datetime, timezone
-
+import logging
+logger = logging.getLogger()
 __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2016"
 __credits__ = ['Tim Laurence']
@@ -30,7 +32,9 @@ DEFAULT_SOCKET = '/var/run/docker.sock'
 DEFAULT_TIMEOUT = 10.0
 DEFAULT_PORT = 2375
 DEFAULT_MEMORY_UNITS = 'b'
-DEFAULT_HEADERS = (('Accept', 'application/vnd.docker.distribution.manifest.v2+json'))
+DEFAULT_HEADERS = [('Accept', 'application/vnd.docker.distribution.manifest.v2+json')]
+DEFAULT_PUBLIC_REGISTRY = 'https://index.docker.io'
+DEFAULT_PUBLIC_AUTH = 'https://auth.docker.io'
 UNIT_ADJUSTMENTS = {
     '%': 1,
     'b': 1,
@@ -70,17 +74,24 @@ class SocketFileHandler(AbstractHTTPHandler):
             self.sock.connect(self.socket_file)
 
     def socket_open(self, req):
-        socket_file, path = req.selector.split(':')
+        socket_file, path = req.selector.split(':', 1)
         req.host = socket_file
         req.selector = path
         return self.do_open(self.SocketFileToHttpConnectionAdaptor, req)
 
 
-better_urllib = OpenerDirector()
-better_urllib.addheaders = [DEFAULT_HEADERS]
-better_urllib.add_handler(HTTPHandler())
-better_urllib.add_handler(HTTPSHandler())
-better_urllib.add_handler(SocketFileHandler())
+better_urllib_get = OpenerDirector()
+better_urllib_get.addheaders = DEFAULT_HEADERS.copy()
+better_urllib_get.add_handler(HTTPHandler())
+better_urllib_get.add_handler(HTTPSHandler())
+better_urllib_get.add_handler(SocketFileHandler())
+
+better_urllib_head = OpenerDirector()
+better_urllib_head.method = 'HEAD'
+better_urllib_head.addheaders = DEFAULT_HEADERS.copy()
+better_urllib_head.add_handler(HTTPHandler())
+better_urllib_head.add_handler(HTTPSHandler())
+better_urllib_head.add_handler(SocketFileHandler())
 
 # Util functions
 #############################################################################################
@@ -100,7 +111,6 @@ def parse_thresholds(spec):
 
 def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min=None, max=None, units='',
                                 greater_than=True):
-
     perf_string = "{}_{}={}{};{};{}".format(container, short_name, value, units, warn, crit)
     if min is not None:
         perf_string += ';{}'.format(min)
@@ -126,14 +136,42 @@ def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, 
 
 @lru_cache()
 def get_url(url):
-    response = better_urllib.open(url, timeout=timeout)
+    response = better_urllib_get.open(url, timeout=timeout)
+    return process_urllib_response(response)
+
+
+@lru_cache()
+def head_url(url, auth_token=None):
+    if auth_token:
+        better_urllib_head.addheaders.append(('Authorization', 'Bearer ' + auth_token))
+    response = better_urllib_head.open(url, timeout=timeout)
+    if auth_token:
+        better_urllib_head.addheaders.pop()
+    return response
+
+
+def process_urllib_response(response):
     bytes = response.read()
     body = bytes.decode('utf-8')
+    logger.debug(body)
     return json.loads(body)
 
 
 def get_container_info(name, type='json'):
     return get_url(daemon + '/containers/{container}/{type}'.format(container=name, type=type))
+
+
+def get_image_info(name, type='json'):
+    return get_url(daemon + '/images/{image}/{type}'.format(image=name, type=type))
+
+
+@lru_cache()
+def get_manifest_auth_token(image_name, auth_source,registry='registry.docker.io',  action='pull'):
+    url = "{auth_source}/token?service={registry}&scope=repository:{image_name}:{action}".format(
+        auth_source=auth_source, registry=registry, image_name=image_name, action=action)
+    logger.debug(url)
+    response = get_url(url)
+    return response['token']
 
 
 def get_status(container):
@@ -208,8 +246,8 @@ def check_status(container, desired_state):
         ok("{} status is {}".format(container, desired_state))
 
 
-def check_uptime(container, warn, crit, units=None):
-    inspection = get_container_info(container)['State']['StartedAt']
+def check_uptime(container_name, warn, crit, units=None):
+    inspection = get_container_info(container_name)['State']['StartedAt']
     only_secs = inspection.split('.')[0]
     start = datetime.strptime(only_secs, "%Y-%m-%dT%H:%M:%S")
     start = start.replace(tzinfo=timezone.utc)
@@ -217,7 +255,7 @@ def check_uptime(container, warn, crit, units=None):
     uptime = (now - start).seconds
 
     graph_padding = 2
-    evaluate_numeric_thresholds(container=container, value=uptime, units='s', warn=warn, crit=crit,
+    evaluate_numeric_thresholds(container=container_name, value=uptime, units='s', warn=warn, crit=crit,
                                 name='uptime',
                                 short_name='up', min=0, max=graph_padding, greater_than=False)
 
@@ -229,6 +267,36 @@ def check_restarts(container, warn, crit, units=None):
     graph_padding = 2
     evaluate_numeric_thresholds(container=container, value=restarts, warn=warn, crit=crit, name='restarts',
                                 short_name='re', min=0, max=graph_padding)
+
+def check_version(container):
+    # find registry and tag
+    inspection = get_container_info(container)
+    image_id = inspection['Image']
+    image_inspection = get_image_info(image_id)
+    image_tag = image_inspection['RepoTags'][0]
+    try:
+        image_digest = image_inspection['RepoDigests'][0].split('@')[1]
+    except IndexError:
+        unknown('Checksum missing for "{}", try doing a pull'.format(container))
+        return
+
+    registry = DEFAULT_PUBLIC_REGISTRY
+    full_image_tag = 'library/' + image_tag
+
+    image_name, image_version = full_image_tag.split(':')
+
+    token = get_manifest_auth_token(image_name, DEFAULT_PUBLIC_AUTH)
+
+    # query registry
+    url = '{registry}/v2/{image_name}/manifests/{image_version}'.format(registry=registry, image_name=image_name,
+                                                                        image_version=image_version)
+    reg_info = head_url(url=url, auth_token=token)
+
+    registry_hash = reg_info.getheader('Docker-Content-Digest', None)
+    if registry_hash is None:
+        raise IndexError('Docker-Content-Digest header missing, cannot check version')
+    if registry_hash != image_digest:
+        critical("{} is out of date".format(container))
 
 
 def process_args(args):
@@ -289,6 +357,13 @@ def process_args(args):
                         action='store',
                         type=str,
                         help='Minimum container uptime in seconds. Used to rapid restarting. Should be less than you monitoring poll interval.')
+
+    # Version
+    parser.add_argument('--version',
+                        dest='version',
+                        default=None,
+                        action='store_true',
+                        help='Check if the running images are the same version as those in the registry. Useful for finding stale images. Only works with public registry.')
 
     # Restart
     parser.add_argument('--restarts',
@@ -362,11 +437,16 @@ if __name__ == '__main__':
                     if args.uptime:
                         check_uptime(container, *parse_thresholds(args.uptime))
 
+                    # Check version
+                    if args.version:
+                        check_version(container)
+
                     # Check restart count
                     if args.restarts:
                         check_restarts(container, *parse_thresholds(args.restarts))
 
         except Exception as e:
+            raise e
             unknown("Exception raised during check: {}".format(str(e)))
 
     print_results()
