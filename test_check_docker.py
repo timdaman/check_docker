@@ -85,18 +85,51 @@ class TestCheckDocker(unittest.TestCase):
         self.assertEqual(check_docker.rc, check_docker.UNKNOWN_RC)
         self.assertListEqual(check_docker.messages, ['UNKNOWN: UNKNOWN test'])
 
-    def test_parse_thresholds(self):
+    def test_parse_thresholds_with_units(self):
         a = check_docker.parse_thresholds('1:2:3')
-        self.assertTupleEqual(a, (1, 2, '3'))
+        self.assertTupleEqual(tuple(a), (1, 2, '3'))
 
-        a = check_docker.parse_thresholds('1:2')
-        self.assertTupleEqual(a, (1, 2, None))
+    def test_parse_thresholds_with_missing_units(self):
+        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2')
 
+    def test_parse_thresholds_with_units_when_disabled(self):
+        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2:b', include_units=False)
+
+    def test_parse_thresholds_missing_units_when_optional(self):
+        a = check_docker.parse_thresholds('1:2',units_required=False)
+        self.assertTupleEqual(tuple(a), (1, 2, None))
+
+    def test_parse_thresholds_with_units_when_optional(self):
+        a = check_docker.parse_thresholds('1:2:3',units_required=False)
+        self.assertTupleEqual(tuple(a), (1, 2, '3'))
+
+    def test_parse_thresholds_missing_units_when_not_optional(self):
+        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2',units_required=True)
+
+    def test_parse_thresholds_with_units_when_not_optional(self):
+        a = check_docker.parse_thresholds('1:2:3',units_required=True)
+        self.assertTupleEqual(tuple(a), (1, 2, '3'))
+
+    def test_parse_thresholds_missing_crit(self):
+        self.assertRaises(IndexError, check_docker.parse_thresholds, "1")
+
+    def test_parse_thresholds_blank_warn(self):
+        self.assertRaises(ValueError, check_docker.parse_thresholds, ":1")
+        self.assertRaises(ValueError, check_docker.parse_thresholds, ":1:c")
+
+    def test_parse_thresholds_blank_crit(self):
+        self.assertRaises(ValueError, check_docker.parse_thresholds, "1:")
+        self.assertRaises(ValueError, check_docker.parse_thresholds, "1::c")
+
+    def test_parse_thresholds_blank_units(self):
+        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2:',units_required=True)
+
+    def test_parse_thresholds_str_warn(self):
         self.assertRaises(ValueError, check_docker.parse_thresholds, "a:1:c")
 
+    def test_parse_thresholds_str_crit(self):
         self.assertRaises(ValueError, check_docker.parse_thresholds, "1:b:c")
 
-        self.assertRaises(IndexError, check_docker.parse_thresholds, "1")
 
     def test_set_rc(self):
         # Can I do a basic set

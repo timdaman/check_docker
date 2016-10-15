@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+from collections import deque
 from copy import copy
 from datetime import datetime, timezone
 import logging
+
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2016"
@@ -95,18 +97,35 @@ better_urllib_head.add_handler(SocketFileHandler())
 
 # Util functions
 #############################################################################################
-def parse_thresholds(spec):
+def parse_thresholds(spec, include_units=True, units_required=True):
     """
     Given a spec string break it up into ':' separated chunks. Convert strings to ints as it makes sense
 
     :param spec:
-    :return: The thresholds, as intergers
+    :return: A list containing the thresholds in order of warn, crit, and units(if included and present)
     """
-    parts = spec.split(':')
-    warn = int(parts[0])
-    crit = int(parts[1])
-    units = parts[2] if len(parts) >= 3 else None
-    return warn, crit, units
+    returned = []
+    parts = deque(spec.split(':'))
+    if not all(parts):
+        raise ValueError("Blanks are not allowed in a threshold specification: {}".format(spec))
+    # Warn
+    returned.append(int(parts.popleft()))
+    # Crit
+    returned.append(int(parts.popleft()))
+    if include_units:
+        if len(parts):
+            # units
+            returned.append(parts.popleft())
+        elif units_required:
+            raise ValueError("Missing units in {}".format(spec))
+        else:
+            # units
+            returned.append(None)
+
+    if len(parts) != 0:
+        raise ValueError("Too many threshold specifiers in {}".format(spec))
+
+    return returned
 
 
 def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min=None, max=None, units='',
@@ -166,7 +185,7 @@ def get_image_info(name, type='json'):
 
 
 @lru_cache()
-def get_manifest_auth_token(image_name, auth_source,registry='registry.docker.io',  action='pull'):
+def get_manifest_auth_token(image_name, auth_source, registry='registry.docker.io', action='pull'):
     url = "{auth_source}/token?service={registry}&scope=repository:{image_name}:{action}".format(
         auth_source=auth_source, registry=registry, image_name=image_name, action=action)
     logger.debug(url)
@@ -268,6 +287,7 @@ def check_restarts(container, warn, crit, units=None):
     evaluate_numeric_thresholds(container=container, value=restarts, warn=warn, crit=crit, name='restarts',
                                 short_name='re', min=0, max=graph_padding)
 
+
 def check_version(container):
     # find registry and tag
     inspection = get_container_info(container)
@@ -341,7 +361,7 @@ def process_args(args):
                         dest='memory',
                         action='store',
                         type=str,
-                        metavar='[WARN:CRIT:UNITS]',
+                        metavar='WARN:CRIT:UNITS',
                         help='Check memory usage. Valid values for units are %%,b,k,m,g.')
 
     # State
@@ -356,7 +376,8 @@ def process_args(args):
                         dest='uptime',
                         action='store',
                         type=str,
-                        help='Minimum container uptime in seconds. Used to rapid restarting. Should be less than you monitoring poll interval.')
+                        metavar='WARN:CRIT',
+                        help='Minimum container uptime in seconds. Use when infrequent crashes are tolerated.')
 
     # Version
     parser.add_argument('--version',
@@ -369,7 +390,6 @@ def process_args(args):
     parser.add_argument('--restarts',
                         dest='restarts',
                         action='store',
-                        nargs='?',
                         type=str,
                         metavar='WARN:CRIT',
                         help='Container restart thresholds.')
@@ -431,11 +451,11 @@ if __name__ == '__main__':
 
                     # Check memory usage
                     if args.memory:
-                        check_memory(container, *parse_thresholds(args.memory))
+                        check_memory(container, *parse_thresholds(args.memory, units_required=False))
 
                     # Check uptime
                     if args.uptime:
-                        check_uptime(container, *parse_thresholds(args.uptime))
+                        check_uptime(container, *parse_thresholds(args.uptime, include_units=False))
 
                     # Check version
                     if args.version:
@@ -443,7 +463,7 @@ if __name__ == '__main__':
 
                     # Check restart count
                     if args.restarts:
-                        check_restarts(container, *parse_thresholds(args.restarts))
+                        check_restarts(container, *parse_thresholds(args.restarts, include_units=False))
 
         except Exception as e:
             raise e
