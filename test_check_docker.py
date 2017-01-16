@@ -1,5 +1,8 @@
 import argparse
+import stat
 from datetime import datetime, timezone, timedelta
+
+from pyfakefs import fake_filesystem_unittest
 
 __author__ = 'tim'
 
@@ -9,12 +12,13 @@ from argparse import ArgumentError
 import check_docker
 
 
-class TestCheckDocker(unittest.TestCase):
+class TestCheckDocker(fake_filesystem_unittest.TestCase):
     def setUp(self):
         check_docker.rc = -1
         check_docker.messages = []
         check_docker.performance_data = []
-        check_docker.daemon = 'socket:///var/run/docker.sock'
+        check_docker.daemon = 'socket://' + check_docker.DEFAULT_SOCKET
+        self.setUpPyfakefs()
 
     def test_evaluate_numeric_thresholds_ok(self):
         # Test OK
@@ -64,7 +68,6 @@ class TestCheckDocker(unittest.TestCase):
         self.assertListEqual(check_docker.messages, ['CRITICAL: container metric is 3b'])
         self.assertListEqual(check_docker.performance_data, ['container_met=3b;2;3;0;10'])
 
-
     def test_ok(self):
         check_docker.ok("OK test")
         self.assertEqual(check_docker.rc, check_docker.OK_RC)
@@ -96,18 +99,18 @@ class TestCheckDocker(unittest.TestCase):
         self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2:b', include_units=False)
 
     def test_parse_thresholds_missing_units_when_optional(self):
-        a = check_docker.parse_thresholds('1:2',units_required=False)
+        a = check_docker.parse_thresholds('1:2', units_required=False)
         self.assertTupleEqual(tuple(a), (1, 2, None))
 
     def test_parse_thresholds_with_units_when_optional(self):
-        a = check_docker.parse_thresholds('1:2:3',units_required=False)
+        a = check_docker.parse_thresholds('1:2:3', units_required=False)
         self.assertTupleEqual(tuple(a), (1, 2, '3'))
 
     def test_parse_thresholds_missing_units_when_not_optional(self):
-        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2',units_required=True)
+        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2', units_required=True)
 
     def test_parse_thresholds_with_units_when_not_optional(self):
-        a = check_docker.parse_thresholds('1:2:3',units_required=True)
+        a = check_docker.parse_thresholds('1:2:3', units_required=True)
         self.assertTupleEqual(tuple(a), (1, 2, '3'))
 
     def test_parse_thresholds_missing_crit(self):
@@ -122,14 +125,13 @@ class TestCheckDocker(unittest.TestCase):
         self.assertRaises(ValueError, check_docker.parse_thresholds, "1::c")
 
     def test_parse_thresholds_blank_units(self):
-        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2:',units_required=True)
+        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2:', units_required=True)
 
     def test_parse_thresholds_str_warn(self):
         self.assertRaises(ValueError, check_docker.parse_thresholds, "a:1:c")
 
     def test_parse_thresholds_str_crit(self):
         self.assertRaises(ValueError, check_docker.parse_thresholds, "1:b:c")
-
 
     def test_set_rc(self):
         # Can I do a basic set
@@ -375,6 +377,41 @@ class TestCheckDocker(unittest.TestCase):
             container_list = check_docker.get_containers(['foo'])
             self.assertListEqual(container_list, [])
 
+    def test_socketfile_failure_false(self):
+        self.fs.CreateFile('/tmp/socket', contents='', st_mode=(stat.S_IFSOCK | 0o666))
+        args = ('--status', 'running', '--connection', '/tmp/socket')
+        result = check_docker.process_args(args=args)
+        self.assertTrue(check_docker.socketfile_permissions_failure(parsed_args=result))
+
+    def test_socketfile_failure_filetype(self):
+        self.fs.CreateFile('/tmp/not_socket', '')
+        args = ('--status', 'running', '--connection', '/tmp/not_socket')
+        result = check_docker.process_args(args=args)
+        self.assertTrue(check_docker.socketfile_permissions_failure(parsed_args=result))
+
+    def test_socketfile_failure_missing(self):
+        args = ('--status', 'running', '--connection', '/tmp/missing')
+        result = check_docker.process_args(args=args)
+        self.assertTrue(check_docker.socketfile_permissions_failure(parsed_args=result))
+
+    def test_socketfile_failure_unwriteable(self):
+        self.fs.CreateFile('/tmp/unwritable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+        args = ('--status', 'running', '--connection', '/tmp/unwritable')
+        result = check_docker.process_args(args=args)
+        self.assertTrue(check_docker.socketfile_permissions_failure(parsed_args=result))
+
+    def test_socketfile_failure_unreadable(self):
+        self.fs.CreateFile('/tmp/unreadable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+        args = ('--status', 'running', '--connection', '/tmp/unreadable')
+        result = check_docker.process_args(args=args)
+        self.assertTrue(check_docker.socketfile_permissions_failure(parsed_args=result))
+
+    def test_socketfile_failure_http(self):
+        self.fs.CreateFile('/tmp/http', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+        args = ('--status', 'running', '--connection', 'http://127.0.0.1')
+        result = check_docker.process_args(args=args)
+        self.assertFalse(check_docker.socketfile_permissions_failure(parsed_args=result))
+
 
 if __name__ == '__main__':
-        unittest.main()
+    unittest.main()

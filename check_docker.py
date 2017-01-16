@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+import os
 from collections import deque
 from copy import copy
 from datetime import datetime, timezone
 import logging
+
+from pathlib import Path
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
@@ -28,7 +31,6 @@ import json
 import socket
 from functools import lru_cache
 import re
-
 
 DEFAULT_SOCKET = '/var/run/docker.sock'
 DEFAULT_TIMEOUT = 10.0
@@ -94,6 +96,7 @@ better_urllib_head.addheaders = DEFAULT_HEADERS.copy()
 better_urllib_head.add_handler(HTTPHandler())
 better_urllib_head.add_handler(HTTPSHandler())
 better_urllib_head.add_handler(SocketFileHandler())
+
 
 # Util functions
 #############################################################################################
@@ -400,13 +403,17 @@ def process_args(args):
     timeout = parsed_args.timeout
 
     global daemon
+    global connection_type
     if parsed_args.secure_connection:
         daemon = 'https://' + parsed_args.secure_connection
+        connection_type = 'https'
     elif parsed_args.connection:
         if parsed_args.connection[0] == '/':
             daemon = 'socket://' + parsed_args.connection + ':'
+            connection_type = 'socket'
         else:
             daemon = 'http://' + parsed_args.connection
+            connection_type = 'http'
 
     return parsed_args
 
@@ -415,6 +422,16 @@ def no_checks_present(parsed_args):
     # Look for all functions whose name starts with 'check_'
     checks = [key[6:] for key in globals().keys() if key.startswith('check_')]
     return all(getattr(parsed_args, check) is None for check in checks)
+
+
+def socketfile_permissions_failure(parsed_args):
+    if connection_type == 'socket':
+        path_obj = Path(parsed_args.connection)
+        return not (path_obj.is_socket()
+                    and os.access(parsed_args.connection, os.R_OK)
+                    and os.access(parsed_args.connection, os.W_OK))
+    else:
+        return False
 
 
 def print_results():
@@ -431,13 +448,14 @@ if __name__ == '__main__':
     #############################################################################################
     args = process_args(argv[1:])
 
-    if no_checks_present(args):
+    if socketfile_permissions_failure(args):
+        unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
+    elif no_checks_present(args):
         unknown("No checks specified.")
     else:
         # Here is where all the work happens
         #############################################################################################
         try:
-
             containers = get_containers(args.containers)
 
             if len(containers) == 0:
@@ -466,8 +484,7 @@ if __name__ == '__main__':
                         check_restarts(container, *parse_thresholds(args.restarts, include_units=False))
 
         except Exception as e:
-            raise e
-            unknown("Exception raised during check: {}".format(str(e)))
+            unknown("Exception raised during check: {}".format(repr(e)))
 
     print_results()
     exit(rc)

@@ -4,7 +4,7 @@ python:
   - "3.4"
   - "3.5"
 install:
-  - pip install codeclimate-test-reporter coverage
+  - pip install codeclimate-test-reporter coverage pyfakefs
 # command to run tests
 script:
   - coverage run ./test_check_docker.py
