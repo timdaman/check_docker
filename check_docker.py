@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 import os
+import stat
 from collections import deque
-from copy import copy
 from datetime import datetime, timezone
 import logging
-
-from pathlib import Path
+from sys import argv
+from http.client import HTTPConnection
+from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
+import argparse
+import json
+import socket
+from functools import lru_cache
+import re
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
@@ -23,14 +29,7 @@ Note: I really would have preferred to have used requests for all the network co
 dependency.
 '''
 
-from sys import argv
-from http.client import HTTPConnection
-from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
-import argparse
-import json
-import socket
-from functools import lru_cache
-import re
+
 
 DEFAULT_SOCKET = '/var/run/docker.sock'
 DEFAULT_TIMEOUT = 10.0
@@ -426,8 +425,8 @@ def no_checks_present(parsed_args):
 
 def socketfile_permissions_failure(parsed_args):
     if connection_type == 'socket':
-        path_obj = Path(parsed_args.connection)
-        return not (path_obj.is_socket()
+        return not (os.path.exists(parsed_args.connection)
+                    and stat.S_ISSOCK(os.stat(parsed_args.connection).st_mode)
                     and os.access(parsed_args.connection, os.R_OK)
                     and os.access(parsed_args.connection, os.W_OK))
     else:

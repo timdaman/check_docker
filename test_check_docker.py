@@ -1,4 +1,5 @@
 import argparse
+import os
 import stat
 from datetime import datetime, timezone, timedelta
 
@@ -381,10 +382,10 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
         self.fs.CreateFile('/tmp/socket', contents='', st_mode=(stat.S_IFSOCK | 0o666))
         args = ('--status', 'running', '--connection', '/tmp/socket')
         result = check_docker.process_args(args=args)
-        self.assertTrue(check_docker.socketfile_permissions_failure(parsed_args=result))
+        self.assertFalse(check_docker.socketfile_permissions_failure(parsed_args=result))
 
     def test_socketfile_failure_filetype(self):
-        self.fs.CreateFile('/tmp/not_socket', '')
+        self.fs.CreateFile('/tmp/not_socket', contents='testing')
         args = ('--status', 'running', '--connection', '/tmp/not_socket')
         result = check_docker.process_args(args=args)
         self.assertTrue(check_docker.socketfile_permissions_failure(parsed_args=result))
