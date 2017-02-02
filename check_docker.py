@@ -269,7 +269,7 @@ def check_status(container, desired_state):
 
 def check_uptime(container_name, warn, crit, units=None):
     inspection = get_container_info(container_name)['State']['StartedAt']
-    only_secs = inspection.split('.')[0]
+    only_secs = inspection[0:19]
     start = datetime.strptime(only_secs, "%Y-%m-%dT%H:%M:%S")
     start = start.replace(tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
