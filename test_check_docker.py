@@ -161,6 +161,46 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
             check_docker.check_status(container='container', desired_state='running')
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
+    def test_check_health1(self):
+        json_results = {
+            'State': {'Health': {'Status': 'healthy'}},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_health(container='container')
+            self.assertEqual(check_docker.rc, check_docker.OK_RC)
+
+    def test_check_health2(self):
+        json_results = {
+            'State': {'Health': {'Status': 'unhealthy'}},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_health(container='container')
+            self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
+    def test_check_health3(self):
+        json_results = {
+            'State': {},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_health(container='container')
+            self.assertEqual(check_docker.rc, check_docker.UNKNOWN_RC)
+
+    def test_check_health4(self):
+        json_results = {
+            'State': {'Health': {}},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_health(container='container')
+            self.assertEqual(check_docker.rc, check_docker.UNKNOWN_RC)
+
+    def test_check_health5(self):
+        json_results = {
+            'State': {'Health': {'Status': 'starting'}},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_health(container='container')
+            self.assertEqual(check_docker.rc, check_docker.UNKNOWN_RC)
+
     def test_check_memory1(self):
         container_info = {
             'memory_stats': {'limit': 10,
@@ -168,7 +208,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
                              }
         }
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_memory(container='container', warn=1, crit=2, units='b')
                 self.assertEqual(check_docker.rc, check_docker.OK_RC)
@@ -180,7 +220,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
                              }
         }
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_memory(container='container', warn=1, crit=2, units='b')
                 self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
@@ -192,7 +232,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
                              }
         }
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_memory(container='container', warn=1, crit=2, units='b')
                 self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
@@ -204,7 +244,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
                              }
         }
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_memory(container='container', warn=20, crit=30, units='%')
                 self.assertEqual(check_docker.rc, check_docker.OK_RC)
@@ -216,7 +256,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
                              }
         }
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_memory(container='container', warn=20, crit=30, units='%')
                 self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
@@ -228,7 +268,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
                              }
         }
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_memory(container='container', warn=20, crit=30, units='%')
                 self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
@@ -236,7 +276,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
     def test_restarts1(self):
         container_info = {'RestartCount': 0}
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_restarts(container='container', warn=1, crit=2)
                 self.assertEqual(check_docker.rc, check_docker.OK_RC)
@@ -244,7 +284,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
     def test_restarts2(self):
         container_info = {'RestartCount': 1}
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_restarts(container='container', warn=1, crit=2)
                 self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
@@ -252,7 +292,7 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
     def test_restarts3(self):
         container_info = {'RestartCount': 3}
 
-        with patch('check_docker.get_status', return_value='running'):
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
             with patch('check_docker.get_container_info', return_value=container_info):
                 check_docker.check_restarts(container='container', warn=1, crit=2)
                 self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)

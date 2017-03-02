@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# S!/usr/bin/env python3
 import os
 import stat
 from collections import deque
@@ -28,8 +28,6 @@ Requires Python 3
 Note: I really would have preferred to have used requests for all the network connections but that would have added a
 dependency.
 '''
-
-
 
 DEFAULT_SOCKET = '/var/run/docker.sock'
 DEFAULT_TIMEOUT = 10.0
@@ -195,8 +193,8 @@ def get_manifest_auth_token(image_name, auth_source, registry='registry.docker.i
     return response['token']
 
 
-def get_status(container):
-    return get_container_info(container)['State']['Status']
+def get_state(container):
+    return get_container_info(container)['State']
 
 
 def get_containers(names):
@@ -243,7 +241,7 @@ def unknown(message):
 def check_memory(container, warn, crit, units):
     assert units in UNIT_ADJUSTMENTS, "Invalid memory units"
 
-    status = get_status(container)
+    status = get_state(container)['Status']
 
     # We can't get stats on container that are not running, the socket read will hang
     if status == 'running':
@@ -261,11 +259,25 @@ def check_memory(container, warn, crit, units):
 
 
 def check_status(container, desired_state):
-    if desired_state.lower() != get_status(container):
+    if desired_state.lower() != get_state(container)['Status']:
         critical("{} state is not {}".format(container, desired_state))
     else:
         ok("{} status is {}".format(container, desired_state))
 
+
+def check_health(container):
+    state = get_state(container)
+    if "Health" in state and "Status" in state["Health"]:
+        health = state["Health"]["Status"]
+        message = "{} is {}".format(container,health )
+        if health == 'healthy':
+            ok(message)
+        elif health == 'unhealthy':
+            critical(message)
+        else:
+            unknown(message)
+    else:
+        unknown('{} has no health check data'.format(container))
 
 def check_uptime(container_name, warn, crit, units=None):
     inspection = get_container_info(container_name)['State']['StartedAt']
@@ -373,6 +385,13 @@ def process_args(args):
                         type=str,
                         help='Desired container status (running, exited, etc). (default: %(default)s)')
 
+    # Health
+    parser.add_argument('--health',
+                        dest='health',
+                        default=None,
+                        action='store_true',
+                        help="Check container's health check status")
+
     # Age
     parser.add_argument('--uptime',
                         dest='uptime',
@@ -465,6 +484,10 @@ if __name__ == '__main__':
                     # Check status
                     if args.status:
                         check_status(container, args.status)
+
+                    # Check status
+                    if args.health:
+                        check_health(container)
 
                     # Check memory usage
                     if args.memory:
