@@ -7,6 +7,7 @@ This a a nagios/NRPE compatible plugin for checking docker containers. So far yo
 * memory consumption in absolute units (bytes, kb, mb, gb) and as a percent of the container limit.
 * automatic restarts performed by the docker daemon
 * container status, i.e. is it running?
+* container health checks are passing?
 * uptime, i.e. is it able to stay running for a long enough time?
 * image version (experimental!), does the running image match that in the remote registry?
 
