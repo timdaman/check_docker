@@ -1,4 +1,4 @@
-# S!/usr/bin/env python3
+#!/usr/bin/env python3
 import os
 import stat
 from collections import deque
