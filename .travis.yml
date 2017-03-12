@@ -9,4 +9,4 @@ install:
 # command to run tests
 script:
   - coverage run ./test_check_docker.py
-  - codeclimate-test-reporter
+  - codeclimate-test-reporter || echo "Ignoring Code Climate reporter upload failure"
