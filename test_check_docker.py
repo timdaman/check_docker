@@ -161,6 +161,33 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
             check_docker.check_status(container='container', desired_state='running')
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
+    # This how older docker engines display state
+    def test_check_status3(self):
+        json_results = {
+            'State': {'Running': True},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_status(container='container', desired_state='running')
+            self.assertEqual(check_docker.rc, check_docker.OK_RC)
+
+    # This how older docker engines display state
+    def test_check_status4(self):
+        json_results = {
+            'State': {'Running': False},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_status(container='container', desired_state='running')
+            self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
+    # This how older docker engines display state
+    def test_check_status5(self):
+        json_results = {
+            'State': {'foo': False},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_status(container='container', desired_state='running')
+            self.assertEqual(check_docker.rc, check_docker.UNKNOWN_RC)
+
     def test_check_health1(self):
         json_results = {
             'State': {'Health': {'Status': 'healthy'}},

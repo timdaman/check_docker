@@ -14,3 +14,5 @@ This a a nagios/NRPE compatible plugin for checking docker containers. So far yo
 This check can communicate with a local docker daemon socket file (default) or with local or remote docker daemons using secure and non-secure tcp connections.
 
 This plugin requires python 3. It is tested on 3.3 and greater but may work on older versions of 3. 
+
+Note: When using this with older versions of docker (I have seen 1.4 and 1.5) --status only supports 'running', 'restarting', and 'paused'.

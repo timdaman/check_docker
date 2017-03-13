@@ -259,10 +259,23 @@ def check_memory(container, warn, crit, units):
 
 
 def check_status(container, desired_state):
-    if desired_state.lower() != get_state(container)['Status']:
-        critical("{} state is not {}".format(container, desired_state))
-    else:
-        ok("{} status is {}".format(container, desired_state))
+
+    normized_desired_state = desired_state.lower()
+    state = get_state(container)
+    # On new docker engines the status holds whatever the current state is, running, stopped, paused, etc.
+    if "Status" in state:
+        if normized_desired_state != get_state(container)['Status']:
+            critical("{} state is not {}".format(container, desired_state))
+            return
+    else: # Assume we are checking an older docker which only uses keys and true false values to indicate state
+        leading_cap_state_name = normized_desired_state.title()
+        if leading_cap_state_name in state:
+            if not state[leading_cap_state_name]:
+                critical("{} state is not {}".format(container, leading_cap_state_name))
+                return
+        else:
+            unknown("For {} cannot find a value for {} in state".format(container,desired_state))
+    ok("{} status is {}".format(container, desired_state))
 
 
 def check_health(container):
