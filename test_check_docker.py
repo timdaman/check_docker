@@ -358,6 +358,18 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
             check_docker.check_uptime(container_name='container', warn=2, crit=1)
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
+    def test_check_uptime4(self):
+        ten = timedelta(days=1, seconds=0)
+        then = datetime.now(tz=timezone.utc) - ten
+        now_string = then.strftime("%Y-%m-%dT%H:%M:%S")
+        now_string += ".0000000000Z"
+        json_results = {
+            'State': {'StartedAt': now_string},
+        }
+        with patch('check_docker.get_url', return_value=json_results):
+            check_docker.check_uptime(container_name='container', warn=2, crit=1)
+            self.assertEqual(check_docker.rc, check_docker.OK_RC)
+
     def test_args_restart(self):
         args = ('--restarts', 'non-default')
         result = check_docker.process_args(args=args)
