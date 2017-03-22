@@ -298,7 +298,7 @@ def check_uptime(container_name, warn, crit, units=None):
     start = datetime.strptime(only_secs, "%Y-%m-%dT%H:%M:%S")
     start = start.replace(tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
-    uptime = (now - start).seconds
+    uptime = (now - start).total_seconds()
 
     graph_padding = 2
     evaluate_numeric_thresholds(container=container_name, value=uptime, units='s', warn=warn, crit=crit,
