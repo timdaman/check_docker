@@ -130,7 +130,7 @@ def parse_thresholds(spec, include_units=True, units_required=True):
 
 def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min=None, max=None, units='',
                                 greater_than=True):
-    perf_string = "{}_{}={}{};{}{};{}{};".format(container, short_name, value, units, warn, units, crit, units)
+    perf_string = "{}_{}={}{};{};{}".format(container, short_name, value, units, warn, crit)
 
     if min is not None:
         perf_string += ';{}'.format(min)
