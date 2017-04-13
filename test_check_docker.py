@@ -300,6 +300,51 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
                 check_docker.check_memory(container='container', warn=20, crit=30, units='%')
                 self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
+    def test_check_cpu1(self):
+        container_info = {
+            'cpu_stats': {'cpu_usage': { 'total_usage': 15 },
+                             'system_cpu_usage': 100
+                             },
+            'precpu_stats': {'cpu_usage': { 'total_usage': 10 },
+                             'system_cpu_usage': 0
+                             }
+        }
+
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
+            with patch('check_docker.get_container_info', return_value=container_info):
+                check_docker.check_cpu(container='container', warn=10, crit=20, units='%')
+                self.assertEqual(check_docker.rc, check_docker.OK_RC)
+
+    def test_check_cpu2(self):
+        container_info = {
+            'cpu_stats': {'cpu_usage': { 'total_usage': 25 },
+                             'system_cpu_usage': 100
+                             },
+            'precpu_stats': {'cpu_usage': { 'total_usage': 10 },
+                             'system_cpu_usage': 0
+                             }
+        }
+
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
+            with patch('check_docker.get_container_info', return_value=container_info):
+                check_docker.check_cpu(container='container', warn=10, crit=20, units='%')
+                self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+
+    def test_check_cpu3(self):
+        container_info = {
+            'cpu_stats': {'cpu_usage': { 'total_usage': 35 },
+                             'system_cpu_usage': 100
+                             },
+            'precpu_stats': {'cpu_usage': { 'total_usage': 10 },
+                             'system_cpu_usage': 0
+                             }
+        }
+
+        with patch('check_docker.get_state', return_value={'Status': 'running'}):
+            with patch('check_docker.get_container_info', return_value=container_info):
+                check_docker.check_cpu(container='container', warn=10, crit=20, units='%')
+                self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
     def test_restarts1(self):
         container_info = {'RestartCount': 0}
 
@@ -384,6 +429,11 @@ class TestCheckDocker(fake_filesystem_unittest.TestCase):
         args = ('--memory', 'non-default')
         result = check_docker.process_args(args=args)
         self.assertEqual(result.memory, 'non-default')
+
+    def test_args_cpu(self):
+        args = ('--cpu', 'non-default')
+        result = check_docker.process_args(args=args)
+        self.assertEqual(result.cpu, 'non-default')
 
     def test_args_containers(self):
         args = ('--containers', 'non-default')

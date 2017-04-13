@@ -131,6 +131,7 @@ def parse_thresholds(spec, include_units=True, units_required=True):
 def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min=None, max=None, units='',
                                 greater_than=True):
     perf_string = "{}_{}={}{};{};{}".format(container, short_name, value, units, warn, crit)
+
     if min is not None:
         perf_string += ';{}'.format(min)
         if max is not None:
@@ -238,6 +239,23 @@ def unknown(message):
 
 # Checks
 #############################################################################################
+def check_cpu(container, warn, crit, units=None):
+
+    status = get_state(container)['Status']
+
+    # We can't get stats on container that are not running, the socket read will hang
+    if status == 'running':
+        inspection = get_container_info(container, 'stats?stream=0')
+
+        cpuDelta = inspection['cpu_stats']['cpu_usage']['total_usage'] - inspection['precpu_stats']['cpu_usage']['total_usage']
+        systemDelta = inspection['cpu_stats']['system_cpu_usage'] - inspection['precpu_stats']['system_cpu_usage']
+
+        max = 100
+        usage = cpuDelta / systemDelta * 100
+
+        evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units='%', name='cpu',
+                                    short_name='cpu', min=0, max=max)
+
 def check_memory(container, warn, crit, units):
     assert units in UNIT_ADJUSTMENTS, "Invalid memory units"
 
@@ -383,6 +401,14 @@ def process_args(args):
                         default=['all'],
                         help='One or more RegEx that match the names of the container(s) to check. If omitted all containers are checked. (default: %(default)s)')
 
+    # CPU
+    parser.add_argument('--cpu',
+                        dest='cpu',
+                        action='store',
+                        type=str,
+                        metavar='WARN:CRIT:UNITS',
+                        help='Check cpu usage. Valid values for units are %%.')
+
     # Memory
     parser.add_argument('--memory',
                         dest='memory',
@@ -501,6 +527,10 @@ if __name__ == '__main__':
                     # Check status
                     if args.health:
                         check_health(container)
+
+                    # Check cpu usage
+                    if args.cpu:
+                        check_cpu(container, *parse_thresholds(args.cpu, units_required=False))
 
                     # Check memory usage
                     if args.memory:
