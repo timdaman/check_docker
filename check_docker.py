@@ -197,6 +197,10 @@ def get_state(container):
     return get_container_info(container)['State']
 
 
+def get_stats(container):
+    return get_url(daemon + '/containers/{container}/stats?stream=0'.format(container=container))
+
+
 def get_containers(names):
     containers_list = get_url(daemon + '/containers/json?all=1')
     all = [x['Names'][0][1:] for x in containers_list]
@@ -259,7 +263,6 @@ def check_memory(container, warn, crit, units):
 
 
 def check_status(container, desired_state):
-
     normized_desired_state = desired_state.lower()
     state = get_state(container)
     # On new docker engines the status holds whatever the current state is, running, stopped, paused, etc.
@@ -267,14 +270,14 @@ def check_status(container, desired_state):
         if normized_desired_state != get_state(container)['Status']:
             critical("{} state is not {}".format(container, desired_state))
             return
-    else: # Assume we are checking an older docker which only uses keys and true false values to indicate state
+    else:  # Assume we are checking an older docker which only uses keys and true false values to indicate state
         leading_cap_state_name = normized_desired_state.title()
         if leading_cap_state_name in state:
             if not state[leading_cap_state_name]:
                 critical("{} state is not {}".format(container, leading_cap_state_name))
                 return
         else:
-            unknown("For {} cannot find a value for {} in state".format(container,desired_state))
+            unknown("For {} cannot find a value for {} in state".format(container, desired_state))
     ok("{} status is {}".format(container, desired_state))
 
 
@@ -282,7 +285,7 @@ def check_health(container):
     state = get_state(container)
     if "Health" in state and "Status" in state["Health"]:
         health = state["Health"]["Status"]
-        message = "{} is {}".format(container,health )
+        message = "{} is {}".format(container, health)
         if health == 'healthy':
             ok(message)
         elif health == 'unhealthy':
@@ -291,6 +294,7 @@ def check_health(container):
             unknown(message)
     else:
         unknown('{} has no health check data'.format(container))
+
 
 def check_uptime(container_name, warn, crit, units=None):
     inspection = get_container_info(container_name)['State']['StartedAt']
@@ -345,8 +349,57 @@ def check_version(container):
     if registry_hash != image_digest:
         critical("{} is out of date".format(container))
 
+def calculate_cpu_capacity_precentage(info, stats):
+    hostConfig = info['HostConfig']
+
+    if 'online_cpus' in stats['cpu_stats']:
+        num_cpus = stats['cpu_stats']['online_cpus']
+    else:
+        num_cpus = len(stats['cpu_stats']['cpu_usage']['percpu_usage'])
+
+    # Identify limit system being used
+    # --cpus
+    if hostConfig['NanoCpus'] != 0:
+        period = 1000000000
+        quota = hostConfig['NanoCpus']
+    # --cpu-quota
+    elif hostConfig['CpuQuota'] != 0:
+        period = 100000 if hostConfig['CpuPeriod'] == 0 else hostConfig['CpuPeriod']
+        quota = hostConfig['CpuQuota']
+    # unlimited
+    else:
+        period = 1
+        quota = num_cpus
+
+    if period * num_cpus < quota:
+        # This handles the case where the quota is actually bigger than amount available by all the cpus.
+        available_limit_ratio = 1
+    else:
+        available_limit_ratio = (period * num_cpus) / quota
+
+    cpuDelta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+    systemDelta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+    usage = (cpuDelta / systemDelta) * available_limit_ratio
+    usage = round(usage * 100, 0)
+    return usage
+
+def check_cpu(container, warn, crit, _=''):
+
+    info = get_container_info(container)
+
+    # We can't get stats on container that are not running, the socket read will hang
+    if info['State']['Status'] == 'running':
+        stats = get_stats(container=container)
+
+        usage = calculate_cpu_capacity_precentage(info=info, stats=stats)
+
+        max = 100
+        evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units='%', name='cpu',
+                                    short_name='cpu', min=0, max=max)
+
 
 def process_args(args):
+
     parser = argparse.ArgumentParser(description='Check docker containers.')
 
     # Connect to local socket or ip address
@@ -383,13 +436,21 @@ def process_args(args):
                         default=['all'],
                         help='One or more RegEx that match the names of the container(s) to check. If omitted all containers are checked. (default: %(default)s)')
 
+    # CPU
+    parser.add_argument('--cpu',
+                        dest='cpu',
+                        action='store',
+                        type=str,
+                        metavar='WARN:CRIT',
+                        help='Check cpu usage percentage taking into account any limits. Valid values are 0 - 100.')
+
     # Memory
     parser.add_argument('--memory',
                         dest='memory',
                         action='store',
                         type=str,
                         metavar='WARN:CRIT:UNITS',
-                        help='Check memory usage. Valid values for units are %%,b,k,m,g.')
+                        help='Check memory usage taking into account any limits. Valid values for units are %%,b,k,m,g.')
 
     # State
     parser.add_argument('--status',
@@ -427,6 +488,9 @@ def process_args(args):
                         type=str,
                         metavar='WARN:CRIT',
                         help='Container restart thresholds.')
+
+    if len(args)==0:
+        parser.print_help()
 
     parsed_args = parser.parse_args(args=args)
 
@@ -474,11 +538,8 @@ def print_results():
         print(messages_concat)
 
 
-if __name__ == '__main__':
-
-    #############################################################################################
-    args = process_args(argv[1:])
-
+def perform_checks(raw_args):
+    args = process_args(raw_args)
     if socketfile_permissions_failure(args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
     elif no_checks_present(args):
@@ -502,6 +563,10 @@ if __name__ == '__main__':
                     if args.health:
                         check_health(container)
 
+                    # Check cpu usage
+                    if args.cpu:
+                        check_cpu(container, *parse_thresholds('50:70', units_required=False))
+
                     # Check memory usage
                     if args.memory:
                         check_memory(container, *parse_thresholds(args.memory, units_required=False))
@@ -520,6 +585,8 @@ if __name__ == '__main__':
 
         except Exception as e:
             unknown("Exception raised during check: {}".format(repr(e)))
-
     print_results()
+
+if __name__ == '__main__':
+    perform_checks(argv[1:])
     exit(rc)

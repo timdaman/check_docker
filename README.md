@@ -5,6 +5,7 @@
 This a a nagios/NRPE compatible plugin for checking docker containers. So far you can use it to check
 
 * memory consumption in absolute units (bytes, kb, mb, gb) and as a percent of the container limit.
+* CPU usages as a percentage (0-100%) of container limit.
 * automatic restarts performed by the docker daemon
 * container status, i.e. is it running?
 * container health checks are passing?
