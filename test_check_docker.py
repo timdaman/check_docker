@@ -176,6 +176,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         check_docker.performance_data = []
         check_docker.daemon = 'socket://' + check_docker.DEFAULT_SOCKET
         self.setUpPyfakefs()
+        self.fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
 
     def test_check_status1(self):
         json_results = {
@@ -353,14 +354,34 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             }
         }
 
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 5)
-        with self.subTest():
-            with patch('check_docker.get_container_info', return_value=container_info):
-                with patch('check_docker.get_stats', return_value=container_stats):
-                    check_docker.check_cpu(container='container', warn=10, crit=20)
-                    self.assertEqual(check_docker.rc, check_docker.OK_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            with patch('check_docker.get_stats', return_value=container_stats):
+                check_docker.check_cpu(container='container', warn=10, crit=20)
+                self.assertEqual(check_docker.rc, check_docker.OK_RC)
+
+    def test_calculate_cpu1(self):
+        container_stats = {
+            'cpu_stats': {'cpu_usage': {'percpu_usage': [15],
+                                        'total_usage': 15},
+                          'online_cpus': 1,
+                          'system_cpu_usage': 100},
+            'precpu_stats': {'cpu_usage': {'percpu_usage': [10],
+                                           'total_usage': 10},
+                             'online_cpus': 1,
+                             'system_cpu_usage': 0,
+                             }
+        }
+        container_info = {
+            'State': {'Status': 'running'},
+            "HostConfig": {
+                "NanoCpus": 1000000000,
+                "CpuPeriod": 0,
+                "CpuQuota": 0,
+            }
+        }
+
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 5)
 
     def test_check_cpu2(self):
         container_stats = {
@@ -383,18 +404,36 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             }
         }
 
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 15)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            with patch('check_docker.get_stats', return_value=container_stats):
+                check_docker.check_cpu(container='container', warn=10, crit=20)
+                self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 15)
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 15)
-            print('ssssssss')
-            with patch('check_docker.get_container_info', return_value=container_info):
-                with patch('check_docker.get_stats', return_value=container_stats):
-                    check_docker.check_cpu(container='container', warn=10, crit=20)
-                    self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+    def test_calculate_cpu2(self):
+        container_stats = {
+            'cpu_stats': {'cpu_usage': {'percpu_usage': [25],
+                                        'total_usage': 25},
+                          'online_cpus': 1,
+                          'system_cpu_usage': 100},
+            'precpu_stats': {'cpu_usage': {'percpu_usage': [10],
+                                           'total_usage': 10},
+                             'online_cpus': 1,
+                             'system_cpu_usage': 0,
+                             }
+        }
+        container_info = {
+            'State': {'Status': 'running'},
+            "HostConfig": {
+                "NanoCpus": 1000000000,
+                "CpuPeriod": 0,
+                "CpuQuota": 0,
+            }
+        }
+
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 15)
 
     def test_check_cpu3(self):
         container_stats = {
@@ -417,15 +456,34 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             }
 
         }
+        with patch('check_docker.get_container_info', return_value=container_info):
+            with patch('check_docker.get_stats', return_value=container_stats):
+                check_docker.check_cpu(container='container', warn=10, crit=20)
+                self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+    def test_calculate_cpu3(self):
+        container_stats = {
+            'cpu_stats': {'cpu_usage': {'percpu_usage': [35],
+                                        'total_usage': 35},
+                          'online_cpus': 1,
+                          'system_cpu_usage': 100},
+            'precpu_stats': {'cpu_usage': {'percpu_usage': [10],
+                                           'total_usage': 10},
+                             'online_cpus': 1,
+                             'system_cpu_usage': 0,
+                             }
+        }
+        container_info = {
+            'State': {'Status': 'running'},
+            "HostConfig": {
+                "NanoCpus": 1000000000,
+                "CpuPeriod": 0,
+                "CpuQuota": 0,
+            }
 
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 25)
-        with self.subTest():
-            with patch('check_docker.get_container_info', return_value=container_info):
-                with patch('check_docker.get_stats', return_value=container_stats):
-                    check_docker.check_cpu(container='container', warn=10, crit=20)
-                    self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+        }
+
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 25)
 
     def test_check_cpu4(self):
         container_stats = {
@@ -448,14 +506,34 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             }
 
         }
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 50)
-        with self.subTest():
-            with patch('check_docker.get_container_info', return_value=container_info):
-                with patch('check_docker.get_stats', return_value=container_stats):
-                    check_docker.check_cpu(container='container', warn=10, crit=20)
-                    self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            with patch('check_docker.get_stats', return_value=container_stats):
+                check_docker.check_cpu(container='container', warn=10, crit=20)
+                self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
+    def test_calculate_cpu4(self):
+        container_stats = {
+            'cpu_stats': {'cpu_usage': {'percpu_usage': [15],
+                                        'total_usage': 15},
+                          'online_cpus': 1,
+                          'system_cpu_usage': 100},
+            'precpu_stats': {'cpu_usage': {'percpu_usage': [10],
+                                           'total_usage': 10},
+                             'online_cpus': 1,
+                             'system_cpu_usage': 0,
+                             }
+        }
+        container_info = {
+            'State': {'Status': 'running'},
+            "HostConfig": {
+                "NanoCpus": 0,
+                "CpuPeriod": 0,
+                "CpuQuota": 10000,
+            }
+
+        }
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 50)
 
     def test_check_cpu5(self):
         container_stats = {
@@ -479,14 +557,34 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
         }
 
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 25)
-        with self.subTest():
-            with patch('check_docker.get_container_info', return_value=container_info):
-                with patch('check_docker.get_stats', return_value=container_stats):
-                    check_docker.check_cpu(container='container', warn=10, crit=20)
-                    self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            with patch('check_docker.get_stats', return_value=container_stats):
+                check_docker.check_cpu(container='container', warn=10, crit=20)
+                self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+    def test_calculate_cpu5(self):
+        container_stats = {
+            'cpu_stats': {'cpu_usage': {'percpu_usage': [35],
+                                        'total_usage': 35},
+                          'online_cpus': 1,
+                          'system_cpu_usage': 100},
+            'precpu_stats': {'cpu_usage': {'percpu_usage': [10],
+                                           'total_usage': 10},
+                             'online_cpus': 1,
+                             'system_cpu_usage': 0,
+                             }
+        }
+        container_info = {
+            'State': {'Status': 'running'},
+            "HostConfig": {
+                "NanoCpus": 0,
+                "CpuPeriod": 0,
+                "CpuQuota": 0,
+            }
+
+        }
+
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 25)
 
     def test_check_cpu6(self):
         container_stats = {
@@ -509,14 +607,34 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
         }
 
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 25)
-        with self.subTest():
-            with patch('check_docker.get_container_info', return_value=container_info):
-                with patch('check_docker.get_stats', return_value=container_stats):
-                    check_docker.check_cpu(container='container', warn=10, crit=20)
-                    self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            with patch('check_docker.get_stats', return_value=container_stats):
+                check_docker.check_cpu(container='container', warn=10, crit=20)
+                self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
+    def test_calculate_cpu6(self):
+        container_stats = {
+            'cpu_stats': {'cpu_usage': {'percpu_usage': [35],
+                                        'total_usage': 35},
+                          'online_cpus': 1,
+                          'system_cpu_usage': 100},
+            'precpu_stats': {'cpu_usage': {'percpu_usage': [10],
+                                           'total_usage': 10},
+                             'system_cpu_usage': 0,
+                             }
+        }
+        container_info = {
+            'State': {'Status': 'running'},
+            "HostConfig": {
+                "NanoCpus": 0,
+                "CpuPeriod": 1,
+                "CpuQuota": 2,
+            }
+
+        }
+
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 25)
 
     def test_check_cpu7(self):
         container_stats = {
@@ -537,14 +655,31 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
         }
 
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 13)
-        with self.subTest():
-            with patch('check_docker.get_container_info', return_value=container_info):
-                with patch('check_docker.get_stats', return_value=container_stats):
-                    check_docker.check_cpu(container='container', warn=10, crit=20)
-                    self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            with patch('check_docker.get_stats', return_value=container_stats):
+                check_docker.check_cpu(container='container', warn=10, crit=20)
+                self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+    def test_calculate_cpu7(self):
+        container_stats = {
+            'cpu_stats': {'cpu_usage': {'total_usage': 36},
+                          'online_cpus': 2,
+                          'system_cpu_usage': 200},
+            'precpu_stats': {'cpu_usage': {'total_usage': 10},
+                             'system_cpu_usage': 0,
+                             }
+        }
+        container_info = {
+            'State': {'Status': 'running'},
+            "HostConfig": {
+                "NanoCpus": 0,
+                "CpuPeriod": 0,
+                "CpuQuota": 0,
+            }
+
+        }
+
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 13)
 
     def test_check_cpu8(self):
         container_stats = {
@@ -565,15 +700,32 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
         }
 
-        with self.subTest():
-            pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
-            self.assertEqual(pecentage, 13)
-        with self.subTest():
-            with patch('check_docker.get_container_info', return_value=container_info):
-                with patch('check_docker.get_stats', return_value=container_stats):
-                    check_docker.check_cpu(container='container', warn=10, crit=20)
-                    self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            with patch('check_docker.get_stats', return_value=container_stats):
+                check_docker.check_cpu(container='container', warn=10, crit=20)
+                self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
+    def test_calculate_cpu8(self):
+        container_stats = {
+            'cpu_stats': {'cpu_usage': {'percpu_usage': [35, 1],
+                                        'total_usage': 36},
+                          'system_cpu_usage': 200},
+            'precpu_stats': {'cpu_usage': {'total_usage': 10},
+                             'system_cpu_usage': 0,
+                             }
+        }
+        container_info = {
+            'State': {'Status': 'running'},
+            "HostConfig": {
+                "NanoCpus": 0,
+                "CpuPeriod": 0,
+                "CpuQuota": 0,
+            }
+
+        }
+
+        pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
+        self.assertEqual(pecentage, 13)
 
     def test_restarts1(self):
         container_info = {'RestartCount': 0}
@@ -770,10 +922,11 @@ class TestSocket(fake_filesystem_unittest.TestCase):
         self.assertFalse(check_docker.socketfile_permissions_failure(parsed_args=result))
 
 
-class TestPerform(unittest.TestCase):
-    containers = [
-        {'Names': ['/thing1']},
-    ]
+class TestPerform(fake_filesystem_unittest.TestCase):
+    def setUp(self):
+        self.setUpPyfakefs()
+        self.fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+        self.containers = [{'Names': ['/thing1']}, ]
 
     def test_no_containers(self):
         args = ['--cpu', '0:0']
