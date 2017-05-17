@@ -460,6 +460,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             with patch('check_docker.get_stats', return_value=container_stats):
                 check_docker.check_cpu(container='container', warn=10, crit=20)
                 self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
     def test_calculate_cpu3(self):
         container_stats = {
             'cpu_stats': {'cpu_usage': {'percpu_usage': [35],
@@ -561,6 +562,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             with patch('check_docker.get_stats', return_value=container_stats):
                 check_docker.check_cpu(container='container', warn=10, crit=20)
                 self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
     def test_calculate_cpu5(self):
         container_stats = {
             'cpu_stats': {'cpu_usage': {'percpu_usage': [35],
@@ -659,6 +661,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             with patch('check_docker.get_stats', return_value=container_stats):
                 check_docker.check_cpu(container='container', warn=10, crit=20)
                 self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+
     def test_calculate_cpu7(self):
         container_stats = {
             'cpu_stats': {'cpu_usage': {'total_usage': 36},
