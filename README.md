@@ -4,16 +4,18 @@
 # check_docker
 This a a nagios/NRPE compatible plugin for checking docker containers. So far you can use it to check
 
-* memory consumption in absolute units (bytes, kb, mb, gb) and as a percent of the container limit.
-* CPU usages as a percentage (0-100%) of container limit.
-* automatic restarts performed by the docker daemon
-* container status, i.e. is it running?
-* container health checks are passing?
-* uptime, i.e. is it able to stay running for a long enough time?
-* image version (experimental!), does the running image match that in the remote registry?
+- memory consumption in absolute units (bytes, kb, mb, gb) and as a percentage (0-100%)
+  of the container limit.
+- CPU usages as a percentage (0-100%) of container limit.
+- automatic restarts performed by the docker daemon
+- container status, i.e. is it running?
+- container health checks are passing?
+- uptime, i.e. is it able to stay running for a long enough time?
+- image version (experimental!), does the running image match that in
+  the remote registry?
 
-This check can communicate with a local docker daemon socket file (default) or with local or remote docker daemons using secure and non-secure tcp connections.
+This check can communicate with a local docker daemon socket file (default) or with local
+or remote docker daemons using secure and non-secure TCP connections.
 
-This plugin requires python 3. It is tested on 3.3 and greater but may work on older versions of 3. 
-
-Note: When using this with older versions of docker (I have seen 1.4 and 1.5) --status only supports 'running', 'restarting', and 'paused'.
+This plugin requires python 3. It is tested on 3.3 and greater but may work on older
+versions of 3.

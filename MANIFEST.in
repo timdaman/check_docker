@@ -1,0 +1,4 @@
+include license.txt
+include README.txt
+include check_docker
+include setup.py
