@@ -10,7 +10,9 @@ from pyfakefs import fake_filesystem_unittest
 
 __author__ = 'tim'
 
-import check_docker
+from importlib.machinery import SourceFileLoader
+check_docker = SourceFileLoader('check_docker', './check_docker').load_module()
+
 
 
 class TestUtil(unittest.TestCase):
