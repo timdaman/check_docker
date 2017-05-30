@@ -359,11 +359,11 @@ def calculate_cpu_capacity_precentage(info, stats):
 
     # Identify limit system being used
     # --cpus
-    if hostConfig['NanoCpus'] != 0:
+    if 'NanoCpus' in hostConfig and hostConfig['NanoCpus'] != 0:
         period = 1000000000
         quota = hostConfig['NanoCpus']
     # --cpu-quota
-    elif hostConfig['CpuQuota'] != 0:
+    elif 'CpuQuota' in hostConfig and hostConfig['CpuQuota'] != 0:
         period = 100000 if hostConfig['CpuPeriod'] == 0 else hostConfig['CpuPeriod']
         quota = hostConfig['CpuQuota']
     # unlimited
