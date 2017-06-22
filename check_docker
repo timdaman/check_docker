@@ -575,7 +575,7 @@ def perform_checks(raw_args):
 
                     # Check cpu usage
                     if args.cpu:
-                        check_cpu(container, *parse_thresholds('50:70', units_required=False))
+                        check_cpu(container, *parse_thresholds(args.cpu, units_required=False))
 
                     # Check memory usage
                     if args.memory:
