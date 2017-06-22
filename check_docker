@@ -260,6 +260,9 @@ def check_memory(container, warn, crit, units):
 
         evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units=units, name='memory',
                                     short_name='mem', min=0, max=max)
+    else:
+        critical('{name} is not running'.format(name=container))
+        return
 
 
 def check_status(container, desired_state):
@@ -297,6 +300,11 @@ def check_health(container):
 
 
 def check_uptime(container_name, warn, crit, units=None):
+    status = get_container_info(container_name)['State']['Status']
+    if status != 'running':
+        critical('{container_name} is "{status}"'.format(container_name=container_name, status=status))
+        return
+
     inspection = get_container_info(container_name)['State']['StartedAt']
     only_secs = inspection[0:19]
     start = datetime.strptime(only_secs, "%Y-%m-%dT%H:%M:%S")
@@ -396,7 +404,9 @@ def check_cpu(container, warn, crit, _=''):
         max = 100
         evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units='%', name='cpu',
                                     short_name='cpu', min=0, max=max)
-
+    else:
+        critical('{name} is not running'.format(name=container))
+        return
 
 def process_args(args):
 
