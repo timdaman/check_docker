@@ -796,7 +796,8 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         now_string = then.strftime("%Y-%m-%dT%H:%M:%S")
         now_string += ".0000000000Z"
         json_results = {
-            'State': {'StartedAt': now_string},
+            'State': {'StartedAt': now_string,
+                      'Status'   : 'running'},
         }
         with patch('check_docker.get_url', return_value=json_results):
             check_docker.check_uptime(container_name='container', warn=2, crit=1)
