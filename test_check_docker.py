@@ -11,8 +11,8 @@ from pyfakefs import fake_filesystem_unittest
 __author__ = 'tim'
 
 from importlib.machinery import SourceFileLoader
-check_docker = SourceFileLoader('check_docker', './check_docker').load_module()
 
+check_docker = SourceFileLoader('check_docker', './check_docker').load_module()
 
 
 class TestUtil(unittest.TestCase):
@@ -179,10 +179,11 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         check_docker.daemon = 'socket://' + check_docker.DEFAULT_SOCKET
         self.setUpPyfakefs()
         self.fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+        check_docker.get_url.cache_clear()
 
     def test_check_status1(self):
         json_results = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
             check_docker.check_status(container='container', desired_state='running')
@@ -225,7 +226,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
     def test_check_health1(self):
         json_results = {
-            'State': {'Health': {'Status': 'healthy'}},
+            'State': {'Health': {'Status': 'healthy'}, 'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
             check_docker.check_health(container='container')
@@ -233,7 +234,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
     def test_check_health2(self):
         json_results = {
-            'State': {'Health': {'Status': 'unhealthy'}},
+            'State': {'Health': {'Status': 'unhealthy'}, 'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
             check_docker.check_health(container='container')
@@ -241,7 +242,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
     def test_check_health3(self):
         json_results = {
-            'State': {},
+            'State': {'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
             check_docker.check_health(container='container')
@@ -249,7 +250,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
     def test_check_health4(self):
         json_results = {
-            'State': {'Health': {}},
+            'State': {'Health': {}, 'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
             check_docker.check_health(container='container')
@@ -257,7 +258,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
     def test_check_health5(self):
         json_results = {
-            'State': {'Health': {'Status': 'starting'}},
+            'State': {'Health': {'Status': 'starting'}, 'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
             check_docker.check_health(container='container')
@@ -265,75 +266,75 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
     def test_check_memory1(self):
         container_info = {
+            'State': {'Running': True},
             'memory_stats': {'limit': 10,
                              'usage': 0
                              }
         }
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_memory(container='container', warn=1, crit=2, units='b')
-                self.assertEqual(check_docker.rc, check_docker.OK_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_memory(container='container', warn=1, crit=2, units='b')
+            self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
     def test_check_memory2(self):
         container_info = {
             'memory_stats': {'limit': 10,
                              'usage': 1
-                             }
+                             },
+            'State': {'Running': True}
         }
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_memory(container='container', warn=1, crit=2, units='b')
-                self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_memory(container='container', warn=1, crit=2, units='b')
+            self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
     def test_check_memory3(self):
         container_info = {
             'memory_stats': {'limit': 10,
                              'usage': 2
-                             }
+                             },
+            'State': {'Running': True}
         }
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_memory(container='container', warn=1, crit=2, units='b')
-                self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_memory(container='container', warn=1, crit=2, units='b')
+            self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
     def test_check_memory4(self):
         container_info = {
             'memory_stats': {'limit': 10,
                              'usage': 1
-                             }
+                             },
+            'State': {'Running': True}
         }
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_memory(container='container', warn=20, crit=30, units='%')
-                self.assertEqual(check_docker.rc, check_docker.OK_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_memory(container='container', warn=20, crit=30, units='%')
+            self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
     def test_check_memory5(self):
         container_info = {
             'memory_stats': {'limit': 10,
                              'usage': 2
-                             }
+                             },
+            'State': {'Running': True}
         }
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_memory(container='container', warn=20, crit=30, units='%')
-                self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_memory(container='container', warn=20, crit=30, units='%')
+            self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
     def test_check_memory6(self):
         container_info = {
             'memory_stats': {'limit': 10,
                              'usage': 3
-                             }
+                             },
+            'State': {'Running': True}
         }
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_memory(container='container', warn=20, crit=30, units='%')
-                self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_memory(container='container', warn=20, crit=30, units='%')
+            self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
     def test_check_cpu1(self):
         container_stats = {
@@ -348,7 +349,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 1000000000,
                 "CpuPeriod": 0,
@@ -374,7 +375,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 1000000000,
                 "CpuPeriod": 0,
@@ -398,7 +399,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 1000000000,
                 "CpuPeriod": 0,
@@ -426,7 +427,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 1000000000,
                 "CpuPeriod": 0,
@@ -450,7 +451,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 1000000000,
                 "CpuPeriod": 0,
@@ -476,7 +477,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 1000000000,
                 "CpuPeriod": 0,
@@ -501,7 +502,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 0,
@@ -527,7 +528,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 0,
@@ -551,7 +552,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 0,
@@ -578,7 +579,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 0,
@@ -602,7 +603,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 1,
@@ -628,7 +629,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 1,
@@ -650,7 +651,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 0,
@@ -674,7 +675,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 0,
@@ -696,7 +697,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 0,
@@ -720,7 +721,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
         container_info = {
-            'State': {'Status': 'running'},
+            'State': {'Running': True},
             "HostConfig": {
                 "NanoCpus": 0,
                 "CpuPeriod": 0,
@@ -732,39 +733,44 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         pecentage = check_docker.calculate_cpu_capacity_precentage(info=container_info, stats=container_stats)
         self.assertEqual(pecentage, 13)
 
-    def test_restarts1(self):
-        container_info = {'RestartCount': 0}
+    def test_require_running(self):
+        ''' This the 'require_running decorator is working properly with a stopped container'''
+        container_info = {'RestartCount': 0, 'State': {'Running': False},}
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_restarts(container='container', warn=1, crit=2)
-                self.assertEqual(check_docker.rc, check_docker.OK_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_restarts(container='container', warn=1, crit=2)
+            self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+
+    def test_restarts1(self):
+        container_info = {'RestartCount': 0, 'State': {'Running': True}}
+
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_restarts(container='container', warn=1, crit=2)
+            self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
     def test_restarts2(self):
-        container_info = {'RestartCount': 1}
+        container_info = {'RestartCount': 1, 'State': {'Running': True}}
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_restarts(container='container', warn=1, crit=2)
-                self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_restarts(container='container', warn=1, crit=2)
+            self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
     def test_restarts3(self):
-        container_info = {'RestartCount': 3}
+        container_info = {'RestartCount': 3, 'State': {'Running': True}}
 
-        with patch('check_docker.get_state', return_value={'Status': 'running'}):
-            with patch('check_docker.get_container_info', return_value=container_info):
-                check_docker.check_restarts(container='container', warn=1, crit=2)
-                self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
+        with patch('check_docker.get_container_info', return_value=container_info):
+            check_docker.check_restarts(container='container', warn=1, crit=2)
+            self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
     def test_check_uptime1(self):
         now_string = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         now_string += ".0000000000Z"
         json_results = {
             'State': {'StartedAt': now_string,
-                      'Status'   : 'running'},
+                      'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
-            check_docker.check_uptime(container_name='container', warn=10, crit=5)
+            check_docker.check_uptime(container='container', warn=10, crit=5)
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
     def test_check_uptime2(self):
@@ -774,10 +780,10 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         now_string += ".0000000000Z"
         json_results = {
             'State': {'StartedAt': now_string,
-                      'Status'   : 'running'},
+                      'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
-            check_docker.check_uptime(container_name='container', warn=20, crit=1)
+            check_docker.check_uptime(container='container', warn=20, crit=1)
             self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
     def test_check_uptime3(self):
@@ -787,10 +793,10 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         now_string += ".0000000000Z"
         json_results = {
             'State': {'StartedAt': now_string,
-                      'Status'   : 'running'},
+                      'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
-            check_docker.check_uptime(container_name='container', warn=2, crit=1)
+            check_docker.check_uptime(container='container', warn=2, crit=1)
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
     def test_check_uptime4(self):
@@ -800,12 +806,13 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         now_string += ".0000000000Z"
         json_results = {
             'State': {'StartedAt': now_string,
-                      'Status'   : 'running'},
+                      'Running': True},
         }
         with patch('check_docker.get_url', return_value=json_results):
-            check_docker.check_uptime(container_name='container', warn=2, crit=1)
+            check_docker.check_uptime(container='container', warn=2, crit=1)
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
-            
+
+
 class TestArgs(unittest.TestCase):
     def setUp(self):
         check_docker.rc = -1
