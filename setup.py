@@ -7,7 +7,7 @@ if sys.version_info < (3, ):
 
 setup(
     name="check_docker",
-    version="1.0.2",
+    version="1.0.3",
     description="NRPE plugin for monitoring Docker containers",
     author="Tim Laurence",
     author_email="timdaman@gmail.com",

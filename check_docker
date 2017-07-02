@@ -15,10 +15,10 @@ import re
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
-__copyright__ = "Copyright 2016"
+__copyright__ = "Copyright 2017"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "1.0.1"
+__version__ = "1.0.3"
 
 '''
 nrpe compatible check for docker containers.
