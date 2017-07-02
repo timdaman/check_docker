@@ -247,19 +247,17 @@ def check_memory(container, warn, crit, units):
 
     status = get_state(container)['Status']
 
-    # We can't get stats on container that are not running, the socket read will hang
-    if status == 'running':
-        inspection = get_container_info(container, 'stats?stream=0')
+    inspection = get_container_info(container, 'stats?stream=0')
 
-        if units == '%':
-            max = 100
-            usage = int(100 * inspection['memory_stats']['usage'] / inspection['memory_stats']['limit'])
-        else:
-            max = inspection['memory_stats']['limit'] / UNIT_ADJUSTMENTS[units]
-            usage = inspection['memory_stats']['usage'] / UNIT_ADJUSTMENTS[units]
+    if units == '%':
+        max = 100
+        usage = int(100 * inspection['memory_stats']['usage'] / inspection['memory_stats']['limit'])
+    else:
+        max = inspection['memory_stats']['limit'] / UNIT_ADJUSTMENTS[units]
+        usage = inspection['memory_stats']['usage'] / UNIT_ADJUSTMENTS[units]
 
-        evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units=units, name='memory',
-                                    short_name='mem', min=0, max=max)
+    evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units=units, name='memory',
+                                short_name='mem', min=0, max=max)
 
 
 def check_status(container, desired_state):
@@ -387,16 +385,13 @@ def check_cpu(container, warn, crit, _=''):
 
     info = get_container_info(container)
 
-    # We can't get stats on container that are not running, the socket read will hang
-    if info['State']['Status'] == 'running':
-        stats = get_stats(container=container)
+    stats = get_stats(container=container)
 
-        usage = calculate_cpu_capacity_precentage(info=info, stats=stats)
+    usage = calculate_cpu_capacity_precentage(info=info, stats=stats)
 
-        max = 100
-        evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units='%', name='cpu',
-                                    short_name='cpu', min=0, max=max)
-
+    max = 100
+    evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units='%', name='cpu',
+                                short_name='cpu', min=0, max=max)
 
 def process_args(args):
 
@@ -559,21 +554,29 @@ def perform_checks(raw_args):
                     if args.status:
                         check_status(container, args.status)
 
-                    # Check status
-                    if args.health:
-                        check_health(container)
+                    container_status = get_container_info(container)['State']['Status']
+                    if container_status == 'running':
+                        # below are checks that require a 'running' status
 
-                    # Check cpu usage
-                    if args.cpu:
-                        check_cpu(container, *parse_thresholds('50:70', units_required=False))
+                        # Check status
+                        if args.health:
+                            check_health(container)
 
-                    # Check memory usage
-                    if args.memory:
-                        check_memory(container, *parse_thresholds(args.memory, units_required=False))
+                        # Check cpu usage
+                        if args.cpu:
+                            check_cpu(container, *parse_thresholds(args.cpu, units_required=False))
 
-                    # Check uptime
-                    if args.uptime:
-                        check_uptime(container, *parse_thresholds(args.uptime, include_units=False))
+                        # Check memory usage
+                        if args.memory:
+                            check_memory(container, *parse_thresholds(args.memory, units_required=False))
+
+                        # Check uptime
+                        if args.uptime:
+                            check_uptime(container, *parse_thresholds(args.uptime, include_units=False))
+                    else:
+                        # container is not running, can't perform check
+                        critical('{container} is not "running" (current state is "{status}")'.format(container=container, status=container_status))
+
 
                     # Check version
                     if args.version:
