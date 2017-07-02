@@ -67,9 +67,10 @@ Usage
                           images. Only works with public registry.
     --restarts WARN:CRIT  Container restart thresholds.
 
-Note: When using this with older versions of docker (I have seen 1.4 and
-1.5) –status only supports ‘running’, ‘restarting’, and ‘paused’.
+Gotchas:
 
+- When using this with older versions of docker (I have seen 1.4 and 1.5) –status only supports ‘running’, ‘restarting’, and ‘paused’.
+- When no container is specified all containers are checked. Some containers will return critcal status because the selected check(s) require a running container.
 
 .. |Build Status| image:: https://travis-ci.org/timdaman/check_docker.svg?branch=master
    :target: https://travis-ci.org/timdaman/check_docker

@@ -7,10 +7,10 @@ from datetime import datetime, timezone, timedelta
 import unittest
 from unittest.mock import patch
 from pyfakefs import fake_filesystem_unittest
+from importlib.machinery import SourceFileLoader
 
 __author__ = 'tim'
 
-from importlib.machinery import SourceFileLoader
 
 check_docker = SourceFileLoader('check_docker', './check_docker').load_module()
 
@@ -734,8 +734,8 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         self.assertEqual(pecentage, 13)
 
     def test_require_running(self):
-        ''' This the 'require_running decorator is working properly with a stopped container'''
-        container_info = {'RestartCount': 0, 'State': {'Running': False},}
+        """ This the 'require_running decorator is working properly with a stopped container"""
+        container_info = {'RestartCount': 0, 'State': {'Running': False}}
 
         with patch('check_docker.get_container_info', return_value=container_info):
             check_docker.check_restarts(container='container', warn=1, crit=2)
