@@ -6,8 +6,11 @@ import stat
 from datetime import datetime, timezone, timedelta
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
+
 from pyfakefs import fake_filesystem_unittest
 from importlib.machinery import SourceFileLoader
+from urllib import request
 
 __author__ = 'tim'
 
@@ -1052,6 +1055,25 @@ class TestOutput(unittest.TestCase):
         output = sys.stdout.getvalue().strip()
         self.assertEqual(output, 'FOO; BAR|1;2;3;4;')
 
+
+class TestVersion(unittest.TestCase):
+
+    def test_package_present(self):
+        req = request.Request("https://pypi.python.org/pypi?:action=doap&name=check_docker", method="HEAD")
+        with request.urlopen(req) as resp:
+            self.assertEqual(resp.getcode(), 200)
+
+    def test_ensure_new_version(self):
+        version = check_docker.__version__
+        req = request.Request("https://pypi.python.org/pypi?:action=doap&name=check_docker&version={version}".
+                              format(version=version), method="HEAD")
+
+        try:
+            with request.urlopen(req) as resp:
+                http_code = resp.getcode()
+        except HTTPError as e:
+            http_code = e.code
+        self.assertEqual(http_code, 404, "Version already exists")
 
 if __name__ == '__main__':
     unittest.main(buffer=True)

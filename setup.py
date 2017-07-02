@@ -1,13 +1,16 @@
 from distutils.core import setup
 import sys
+from importlib.machinery import SourceFileLoader
+
+check_docker = SourceFileLoader('check_docker', './check_docker').load_module()
+
 
 if sys.version_info < (3, ):
     raise SystemExit('check_docker requires Python 3.3 or higher.')
 
-
 setup(
     name="check_docker",
-    version="1.0.3",
+    version=check_docker.__version__,
     description="NRPE plugin for monitoring Docker containers",
     author="Tim Laurence",
     author_email="timdaman@gmail.com",
