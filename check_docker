@@ -201,18 +201,24 @@ def get_stats(container):
     return get_url(daemon + '/containers/{container}/stats?stream=0'.format(container=container))
 
 
-def get_containers(names):
+def get_containers(names, require_present):
     containers_list = get_url(daemon + '/containers/json?all=1')
-    all = [x['Names'][0][1:] for x in containers_list]
+    all = set(x['Names'][0][1:] for x in containers_list)
     if 'all' in names:
         return all
-    else:
-        filtered = []
-        for found in all:
-            for matcher in names:
-                if re.match("^{}$".format(matcher), found):
-                    filtered.append(found)
-        return filtered
+
+    filtered = set()
+    for matcher in names:
+        found = False
+        for candidate in all:
+            if re.match("^{}$".format(matcher), candidate):
+                filtered.add(candidate)
+                found = True
+        # If we don't find a container that matches out regex
+        if require_present and not found:
+            critical("No containers match {}".format(matcher))
+
+    return filtered
 
 
 def set_rc(new_rc):
@@ -451,6 +457,13 @@ def process_args(args):
                         default=['all'],
                         help='One or more RegEx that match the names of the container(s) to check. If omitted all containers are checked. (default: %(default)s)')
 
+    # Container name
+    parser.add_argument('--present',
+                        dest='present',
+                        default=False,
+                        action='store_true',
+                        help='Modifies --containers so that each RegEx must match at least one container.')
+
     # CPU
     parser.add_argument('--cpu',
                         dest='cpu',
@@ -563,7 +576,7 @@ def perform_checks(raw_args):
         # Here is where all the work happens
         #############################################################################################
         try:
-            containers = get_containers(args.containers)
+            containers = get_containers(args.containers, args.present)
 
             if len(containers) == 0:
                 unknown("No containers names found matching criteria")
