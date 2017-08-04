@@ -179,9 +179,6 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         check_docker.rc = -1
         check_docker.messages = []
         check_docker.performance_data = []
-        check_docker.daemon = 'socket://' + check_docker.DEFAULT_SOCKET
-        self.setUpPyfakefs()
-        self.fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
         check_docker.get_url.cache_clear()
 
     def test_check_status1(self):
@@ -275,7 +272,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=1, crit=2, units='b')
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
@@ -287,7 +284,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=1, crit=2, units='b')
             self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
@@ -299,7 +296,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=1, crit=2, units='b')
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
@@ -311,7 +308,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=20, crit=30, units='%')
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
@@ -323,7 +320,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=20, crit=30, units='%')
             self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
@@ -335,7 +332,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=20, crit=30, units='%')
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
@@ -817,6 +814,12 @@ class TestChecks(fake_filesystem_unittest.TestCase):
 
 
 class TestArgs(unittest.TestCase):
+
+    sample_containers_json = [
+            {'Names': ['/thing1']},
+            {'Names': ['/thing2']}
+        ]
+
     def setUp(self):
         check_docker.rc = -1
 
@@ -846,6 +849,13 @@ class TestArgs(unittest.TestCase):
             self.assertRaises(argparse.ArgumentError, check_docker.process_args, args=args)
         except SystemExit:  # Argument failures exit as well
             pass
+
+    def test_args_present(self):
+        result = check_docker.process_args(args=())
+        self.assertFalse(result.present)
+        args = ('--present',)
+        result = check_docker.process_args(args=args)
+        self.assertTrue(result.present)
 
     def test_args_timeout(self):
         args = ('--timeout', '9999')
@@ -890,30 +900,35 @@ class TestArgs(unittest.TestCase):
         result = check_docker.process_args(args=args)
         self.assertFalse(check_docker.no_checks_present(result))
 
-    def test_get_containers(self):
-        json_results = [
-            {'Names': ['/thing1']},
-            {'Names': ['/thing2']}
-        ]
-        with patch('check_docker.get_url', return_value=json_results):
-            container_list = check_docker.get_containers('all')
-            self.assertListEqual(container_list, ['thing1', 'thing2'])
+    def test_get_containers_1(self):
+        with patch('check_docker.get_url', return_value=self.sample_containers_json):
+            container_list = check_docker.get_containers('all', False)
+            self.assertSetEqual(container_list, {'thing1', 'thing2'})
 
-        with patch('check_docker.get_url', return_value=json_results):
-            container_list = check_docker.get_containers(['thing.*'])
-            self.assertListEqual(container_list, ['thing1', 'thing2'])
+    def test_get_containers_2(self):
+        with patch('check_docker.get_url', return_value=self.sample_containers_json):
+            container_list = check_docker.get_containers(['thing.*'], False)
+            self.assertSetEqual(container_list, {'thing1', 'thing2'})
 
-        with patch('check_docker.get_url', return_value=json_results):
-            container_list = check_docker.get_containers(['foo'])
-            self.assertListEqual(container_list, [])
+    def test_get_containers_3(self):
+        with patch('check_docker.get_url', return_value=self.sample_containers_json):
+            with patch('check_docker.unknown') as patched:
+                container_list = check_docker.get_containers({'foo'}, False)
+                self.assertSetEqual(container_list, set())
+                self.assertEqual(patched.call_count, 0)
 
+    def test_get_containers_4(self):
+        with patch('check_docker.get_url', return_value=self.sample_containers_json):
+            with patch('check_docker.critical') as patched:
+                container_list = check_docker.get_containers({'foo'}, True)
+                self.assertSetEqual(container_list, set())
+                self.assertEqual(patched.call_count, 1)
 
 class TestSocket(fake_filesystem_unittest.TestCase):
     def setUp(self):
         check_docker.rc = -1
         check_docker.messages = []
         check_docker.performance_data = []
-        check_docker.daemon = 'socket://' + check_docker.DEFAULT_SOCKET
         self.setUpPyfakefs()
 
     def test_socketfile_failure_false(self):
