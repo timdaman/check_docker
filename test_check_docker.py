@@ -179,9 +179,6 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         check_docker.rc = -1
         check_docker.messages = []
         check_docker.performance_data = []
-        check_docker.daemon = 'socket://' + check_docker.DEFAULT_SOCKET
-        self.setUpPyfakefs()
-        self.fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
         check_docker.get_url.cache_clear()
 
     def test_check_status1(self):
@@ -275,7 +272,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
                              }
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=1, crit=2, units='b')
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
@@ -287,7 +284,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=1, crit=2, units='b')
             self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
@@ -299,7 +296,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=1, crit=2, units='b')
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
@@ -311,7 +308,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=20, crit=30, units='%')
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
@@ -323,7 +320,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=20, crit=30, units='%')
             self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
@@ -335,7 +332,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
             'State': {'Running': True}
         }
 
-        with patch('check_docker.get_container_info', return_value=container_info):
+        with patch('check_docker.get_url', return_value=container_info):
             check_docker.check_memory(container='container', warn=20, crit=30, units='%')
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
@@ -932,7 +929,6 @@ class TestSocket(fake_filesystem_unittest.TestCase):
         check_docker.rc = -1
         check_docker.messages = []
         check_docker.performance_data = []
-        check_docker.daemon = 'socket://' + check_docker.DEFAULT_SOCKET
         self.setUpPyfakefs()
 
     def test_socketfile_failure_false(self):
@@ -973,8 +969,6 @@ class TestSocket(fake_filesystem_unittest.TestCase):
 
 class TestPerform(fake_filesystem_unittest.TestCase):
     def setUp(self):
-        self.setUpPyfakefs()
-        self.fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
         self.containers = [{'Names': ['/thing1']}, ]
 
     def test_no_containers(self):

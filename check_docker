@@ -101,7 +101,9 @@ def parse_thresholds(spec, include_units=True, units_required=True):
     """
     Given a spec string break it up into ':' separated chunks. Convert strings to ints as it makes sense
 
-    :param spec:
+    :param spec: The threshold specification being parsed
+    :param include_units: Specifies that units should be processed and returned if present
+    :param units_required: Mark spec as invalid if the units are missing.
     :return: A list containing the thresholds in order of warn, crit, and units(if included and present)
     """
     returned = []
@@ -170,18 +172,18 @@ def head_url(url, auth_token=None):
 
 
 def process_urllib_response(response):
-    bytes = response.read()
-    body = bytes.decode('utf-8')
+    response_bytes = response.read()
+    body = response_bytes.decode('utf-8')
     logger.debug(body)
     return json.loads(body)
 
 
-def get_container_info(name, type='json'):
-    return get_url(daemon + '/containers/{container}/{type}'.format(container=name, type=type))
+def get_container_info(name):
+    return get_url(daemon + '/containers/{container}/json'.format(container=name))
 
 
-def get_image_info(name, type='json'):
-    return get_url(daemon + '/images/{image}/{type}'.format(image=name, type=type))
+def get_image_info(name):
+    return get_url(daemon + '/images/{image}/json'.format(image=name))
 
 
 @lru_cache()
@@ -203,14 +205,14 @@ def get_stats(container):
 
 def get_containers(names, require_present):
     containers_list = get_url(daemon + '/containers/json?all=1')
-    all = set(x['Names'][0][1:] for x in containers_list)
+    all_container_names = set(x['Names'][0][1:] for x in containers_list)
     if 'all' in names:
-        return all
+        return all_container_names
 
     filtered = set()
     for matcher in names:
         found = False
-        for candidate in all:
+        for candidate in all_container_names:
             if re.match("^{}$".format(matcher), candidate):
                 filtered.add(candidate)
                 found = True
@@ -269,7 +271,7 @@ def require_running(name):
 def check_memory(container, warn, crit, units):
     assert units in UNIT_ADJUSTMENTS, "Invalid memory units"
 
-    inspection = get_container_info(container, 'stats?stream=0')
+    inspection = get_stats(container)
 
     if units == '%':
         max = 100
@@ -373,7 +375,7 @@ def check_version(container):
 
 
 def calculate_cpu_capacity_precentage(info, stats):
-    hostConfig = info['HostConfig']
+    host_config = info['HostConfig']
 
     if 'online_cpus' in stats['cpu_stats']:
         num_cpus = stats['cpu_stats']['online_cpus']
@@ -382,13 +384,13 @@ def calculate_cpu_capacity_precentage(info, stats):
 
     # Identify limit system being used
     # --cpus
-    if 'NanoCpus' in hostConfig and hostConfig['NanoCpus'] != 0:
+    if 'NanoCpus' in host_config and host_config['NanoCpus'] != 0:
         period = 1000000000
-        quota = hostConfig['NanoCpus']
+        quota = host_config['NanoCpus']
     # --cpu-quota
-    elif 'CpuQuota' in hostConfig and hostConfig['CpuQuota'] != 0:
-        period = 100000 if hostConfig['CpuPeriod'] == 0 else hostConfig['CpuPeriod']
-        quota = hostConfig['CpuQuota']
+    elif 'CpuQuota' in host_config and host_config['CpuQuota'] != 0:
+        period = 100000 if host_config['CpuPeriod'] == 0 else host_config['CpuPeriod']
+        quota = host_config['CpuQuota']
     # unlimited
     else:
         period = 1
@@ -400,9 +402,9 @@ def calculate_cpu_capacity_precentage(info, stats):
     else:
         available_limit_ratio = (period * num_cpus) / quota
 
-    cpuDelta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
-    systemDelta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
-    usage = (cpuDelta / systemDelta) * available_limit_ratio
+    cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+    system_delta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+    usage = (cpu_delta / system_delta) * available_limit_ratio
     usage = round(usage * 100, 0)
     return usage
 
