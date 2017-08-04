@@ -969,6 +969,8 @@ class TestSocket(fake_filesystem_unittest.TestCase):
 
 class TestPerform(fake_filesystem_unittest.TestCase):
     def setUp(self):
+        self.setUpPyfakefs()
+        self.fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
         self.containers = [{'Names': ['/thing1']}, ]
 
     def test_no_containers(self):
