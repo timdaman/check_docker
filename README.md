@@ -11,8 +11,10 @@ This a a nagios/NRPE compatible plugin for checking docker containers. So far yo
 - container status, i.e. is it running?
 - container health checks are passing?
 - uptime, i.e. is it able to stay running for a long enough time?
+- the presence of a container or containers matching specified names
 - image version (experimental!), does the running image match that in
   the remote registry?
+
 
 This check can communicate with a local docker daemon socket file (default) or with local
 or remote docker daemons using secure and non-secure TCP connections.
@@ -41,17 +43,17 @@ With wget
 
 ## Usage
 
-    usage: check_docker.py [-h]
-                           [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
-                           | --secure-connection [<ip/host address>:<port>]]
-                           [--timeout TIMEOUT]
-                           [--containers CONTAINERS [CONTAINERS ...]]
-                           [--cpu WARN:CRIT] [--memory WARN:CRIT:UNITS]
-                           [--status STATUS] [--health] [--uptime WARN:CRIT]
-                           [--version] [--restarts WARN:CRIT]
-  
+    usage: check_docker [-h]
+                        [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
+                        | --secure-connection [<ip/host address>:<port>]]
+                        [--timeout TIMEOUT]
+                        [--containers CONTAINERS [CONTAINERS ...]] [--present]
+                        [--cpu WARN:CRIT] [--memory WARN:CRIT:UNITS]
+                        [--status STATUS] [--health] [--uptime WARN:CRIT]
+                        [--version] [--restarts WARN:CRIT]
+
     Check docker containers.
-  
+
     optional arguments:
       -h, --help            show this help message and exit
       --connection [/<path to>/docker.socket|<ip/host address>:<port>]
@@ -64,6 +66,8 @@ With wget
                             One or more RegEx that match the names of the
                             container(s) to check. If omitted all containers are
                             checked. (default: ['all'])
+      --present             Modifies --containers so that each RegEx must match at
+                            least one container.
       --cpu WARN:CRIT       Check cpu usage percentage taking into account any
                             limits. Valid values are 0 - 100.
       --memory WARN:CRIT:UNITS
