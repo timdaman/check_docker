@@ -1029,6 +1029,13 @@ class TestPerform(fake_filesystem_unittest.TestCase):
                 check_docker.perform_checks(args)
                 self.assertEqual(patched.call_count, 1)
 
+    def test_check_version(self):
+        args = ['--swarm']
+        with patch('check_docker.get_url_status', return_value=self.http_success):
+            with patch('check_docker.check_swarm') as patched:
+                check_docker.perform_checks(args)
+                self.assertEqual(patched.call_count, 1)
+
     def test_check_no_checks(self):
         args = []
         with patch('check_docker.get_url', return_value=self.containers):
