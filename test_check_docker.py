@@ -1039,7 +1039,7 @@ class TestPerform(fake_filesystem_unittest.TestCase):
                 self.assertEqual(patched.call_count, 1)
 
     def test_check_service(self):
-        args = ['--service' 'test']
+        args = ['--service', 'test']
         with patch('check_docker.get_url_with_status', return_value=self.http_success_with_payload):
             with patch('check_docker.check_service') as patched:
                 check_docker.perform_checks(args)
