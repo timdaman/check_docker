@@ -581,8 +581,8 @@ def process_args(args):
     # Swarm
     parser.add_argument('--swarm',
                         dest='swarm',
-                        action='store_true',
                         default=None,
+                        action='store_true',
                         help='Check swarm status')
 
     # Service
@@ -655,15 +655,13 @@ def perform_checks(raw_args):
             containers = get_containers(args.containers, args.present)
 
             if len(containers) == 0:
-                # Check swarm status
+                unknown("No containers names found matching criteria")
+
+            else:
                 if args.swarm:
                     check_swarm()
                 elif args.service:
                     check_service(args.service)
-                else:
-                    unknown("No containers names found matching criteria")
-
-            else:
                 for container in containers:
 
                     # Check status
