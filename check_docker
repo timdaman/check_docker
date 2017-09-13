@@ -654,14 +654,13 @@ def perform_checks(raw_args):
         try:
             containers = get_containers(args.containers, args.present)
 
-            if len(containers) == 0:
+            if args.swarm:
+                check_swarm()
+            elif args.service:
+                check_service(args.service)
+            elif len(containers) == 0:
                 unknown("No containers names found matching criteria")
-
             else:
-                if args.swarm:
-                    check_swarm()
-                elif args.service:
-                    check_service(args.service)
                 for container in containers:
 
                     # Check status
