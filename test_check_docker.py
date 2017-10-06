@@ -978,8 +978,7 @@ class TestPerform(fake_filesystem_unittest.TestCase):
         self.setUpPyfakefs()
         self.fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
         self.containers = [{'Names': ['/thing1']}, ]
-        self.http_success = 200
-        self.http_success_with_payload = (200, '{}')
+        self.http_success_with_empty_payload = ('{}', 200)
 
     def test_no_containers(self):
         args = ['--cpu', '0:0']
@@ -1039,14 +1038,14 @@ class TestPerform(fake_filesystem_unittest.TestCase):
 
     def test_check_swarm(self):
         args = ['--swarm']
-        with patch('check_docker.get_url_status', return_value=self.http_success):
+        with patch('check_docker.get_url', return_value=(self.containers, 200)):
             with patch('check_docker.check_swarm') as patched:
                 check_docker.perform_checks(args)
                 self.assertEqual(patched.call_count, 1)
 
     def test_check_service(self):
         args = ['--service', 'test']
-        with patch('check_docker.get_url_with_status', return_value=self.http_success_with_payload):
+        with patch('check_docker.get_url', return_value=(self.containers, 200)):
             with patch('check_docker.check_service') as patched:
                 check_docker.perform_checks(args)
                 self.assertEqual(patched.call_count, 1)
