@@ -161,16 +161,6 @@ def get_url(url):
     return process_urllib_response(response), response.code
 
 
-def get_url_status(url):
-    response = better_urllib_get.open(url, timeout=timeout)
-    return response.code
-
-
-def get_url_with_status(url):
-    response = better_urllib_get.open(url, timeout=timeout)
-    return response.code, process_urllib_response(response)
-
-
 @lru_cache()
 def head_url(url, auth_token=None):
     if auth_token:
@@ -199,11 +189,12 @@ def get_image_info(name):
 
 
 def get_swarm_status():
-    return get_url_status(daemon + '/swarm')
+    content, status = get_url(daemon + '/swarm')
+    return status
 
 
 def get_service_info(name):
-    return get_url_with_status(daemon + '/services/{service}'.format(service=name))
+    return get_url(daemon + '/services/{service}'.format(service=name))
 
 
 @lru_cache()
@@ -451,7 +442,7 @@ def check_swarm():
 
 
 def check_service(name):
-    status, info = get_service_info(name)
+    info, status = get_service_info(name)
     evaluated_status = evaluate_url_status(status)
     process_url_status(evaluated_status, ok_msg='Service {service} is up and running'.format(service=name),
                        warning_msg='Service {service} was not found on the swarm'.format(service=name),
@@ -654,6 +645,7 @@ def perform_checks(raw_args):
         try:
             containers = get_containers(args.containers, args.present)
 
+            print(args)
             if args.swarm:
                 check_swarm()
             elif args.service:
@@ -694,7 +686,8 @@ def perform_checks(raw_args):
                         check_restarts(container, *parse_thresholds(args.restarts, include_units=False))
 
         except Exception as e:
-            unknown("Exception raised during check: {}".format(repr(e)))
+            raise e
+        #    unknown("Exception raised during check: {}".format(repr(e)))
 
     print_results()
 
