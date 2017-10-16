@@ -11,12 +11,12 @@ if sys.version_info < (3, ):
 setup(
     name="check_docker",
     version=check_docker.__version__,
-    description="NRPE plugin for monitoring Docker containers",
+    description="NRPE plugin for monitoring Docker containers and swarms",
     author="Tim Laurence",
     author_email="timdaman@gmail.com",
     url="https://github.com/timdaman/check_docker",
     keywords=["nrpe", "nagios", "docker", "monitoring"],
-    scripts=["check_docker"],
+    scripts=["check_docker", "check_swarm"],
     download_url="https://github.com/timdaman/check_docker/archive/master.zip",
     python_requires=">=3.0",
     classifiers=[

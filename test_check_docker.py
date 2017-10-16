@@ -198,6 +198,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
     def test_check_status2(self):
         json_results = {
             'State': {'Status': 'stopped'},
+            'State': {'Status': 'stopped'},
         }
         with patch('check_docker.get_url', return_value=(json_results, 200)):
             check_docker.check_status(container='container', desired_state='running')
@@ -1033,20 +1034,6 @@ class TestPerform(fake_filesystem_unittest.TestCase):
         args = ['--version']
         with patch('check_docker.get_url', return_value=(self.containers, 200)):
             with patch('check_docker.check_version') as patched:
-                check_docker.perform_checks(args)
-                self.assertEqual(patched.call_count, 1)
-
-    def test_check_swarm(self):
-        args = ['--swarm']
-        with patch('check_docker.get_url', return_value=(self.containers, 200)):
-            with patch('check_docker.check_swarm') as patched:
-                check_docker.perform_checks(args)
-                self.assertEqual(patched.call_count, 1)
-
-    def test_check_service(self):
-        args = ['--service', 'test']
-        with patch('check_docker.get_url', return_value=(self.containers, 200)):
-            with patch('check_docker.check_service') as patched:
                 check_docker.perform_checks(args)
                 self.assertEqual(patched.call_count, 1)
 
