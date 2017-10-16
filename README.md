@@ -72,7 +72,7 @@ With wget
                             limits. Valid values are 0 - 100.
       --memory WARN:CRIT:UNITS
                             Check memory usage taking into account any limits.
-                            Valid values for units are %,b,k,m,g.
+                            Valid values for units are %,B,k,M,G.
       --status STATUS       Desired container status (running, exited, etc).
                             (default: None)
       --health              Check container's health check status
