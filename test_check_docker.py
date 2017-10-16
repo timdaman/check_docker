@@ -59,11 +59,11 @@ class TestReporting(unittest.TestCase):
                                                  short_name='met',
                                                  min=0,
                                                  max=10,
-                                                 units='b'
+                                                 units='B'
                                                  )
         self.assertEqual(check_docker.rc, check_docker.OK_RC, "Incorrect return code")
-        self.assertListEqual(check_docker.messages, ['OK: container metric is 1b'])
-        self.assertListEqual(check_docker.performance_data, ['container_met=1b;2;3;0;10'])
+        self.assertListEqual(check_docker.messages, ['OK: container metric is 1B'])
+        self.assertListEqual(check_docker.performance_data, ['container_met=1B;2;3;0;10'])
 
     def test_evaluate_numeric_thresholds_warn(self):
         # Test warn
@@ -75,11 +75,11 @@ class TestReporting(unittest.TestCase):
                                                  short_name='met',
                                                  min=0,
                                                  max=10,
-                                                 units='b'
+                                                 units='B'
                                                  )
         self.assertEqual(check_docker.rc, check_docker.WARNING_RC, "Incorrect return code")
-        self.assertListEqual(check_docker.messages, ['WARNING: container metric is 2b'])
-        self.assertListEqual(check_docker.performance_data, ['container_met=2b;2;3;0;10'])
+        self.assertListEqual(check_docker.messages, ['WARNING: container metric is 2B'])
+        self.assertListEqual(check_docker.performance_data, ['container_met=2B;2;3;0;10'])
 
     def test_evaluate_numeric_thresholds_crit(self):
         # Test crit
@@ -91,11 +91,11 @@ class TestReporting(unittest.TestCase):
                                                  short_name='met',
                                                  min=0,
                                                  max=10,
-                                                 units='b'
+                                                 units='B'
                                                  )
         self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC, "Incorrect return code")
-        self.assertListEqual(check_docker.messages, ['CRITICAL: container metric is 3b'])
-        self.assertListEqual(check_docker.performance_data, ['container_met=3b;2;3;0;10'])
+        self.assertListEqual(check_docker.messages, ['CRITICAL: container metric is 3B'])
+        self.assertListEqual(check_docker.performance_data, ['container_met=3B;2;3;0;10'])
 
     def test_ok(self):
         check_docker.ok("OK test")
@@ -125,7 +125,7 @@ class TestReporting(unittest.TestCase):
         self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2')
 
     def test_parse_thresholds_with_units_when_disabled(self):
-        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2:b', include_units=False)
+        self.assertRaises(ValueError, check_docker.parse_thresholds, '1:2:B', include_units=False)
 
     def test_parse_thresholds_missing_units_when_optional(self):
         a = check_docker.parse_thresholds('1:2', units_required=False)
@@ -273,7 +273,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         }
 
         with patch('check_docker.get_url', return_value=container_info):
-            check_docker.check_memory(container='container', warn=1, crit=2, units='b')
+            check_docker.check_memory(container='container', warn=1, crit=2, units='B')
             self.assertEqual(check_docker.rc, check_docker.OK_RC)
 
     def test_check_memory2(self):
@@ -285,7 +285,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         }
 
         with patch('check_docker.get_url', return_value=container_info):
-            check_docker.check_memory(container='container', warn=1, crit=2, units='b')
+            check_docker.check_memory(container='container', warn=1, crit=2, units='B')
             self.assertEqual(check_docker.rc, check_docker.WARNING_RC)
 
     def test_check_memory3(self):
@@ -297,7 +297,7 @@ class TestChecks(fake_filesystem_unittest.TestCase):
         }
 
         with patch('check_docker.get_url', return_value=container_info):
-            check_docker.check_memory(container='container', warn=1, crit=2, units='b')
+            check_docker.check_memory(container='container', warn=1, crit=2, units='B')
             self.assertEqual(check_docker.rc, check_docker.CRITICAL_RC)
 
     def test_check_memory4(self):
