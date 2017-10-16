@@ -188,15 +188,6 @@ def get_image_info(name):
     return content
 
 
-def get_swarm_status():
-    content, status = get_url(daemon + '/swarm')
-    return status
-
-
-def get_service_info(name):
-    return get_url(daemon + '/services/{service}'.format(service=name))
-
-
 @lru_cache()
 def get_manifest_auth_token(image_name, auth_source, registry='registry.docker.io', action='pull'):
     url = "{auth_source}/token?service={registry}&scope=repository:{image_name}:{action}".format(
@@ -433,45 +424,6 @@ def check_cpu(container, warn, crit, _=''):
                                 short_name='cpu', min=0, max=max)
 
 
-def check_swarm():
-    status = get_swarm_status()
-
-    evaluated_status = evaluate_url_status(status)
-    process_url_status(evaluated_status, ok_msg='Node is in a swarm',
-                       critical_msg='Node is not in a swarm', unknown_msg='Error accessing swarm info')
-
-
-def check_service(name):
-    info, status = get_service_info(name)
-    evaluated_status = evaluate_url_status(status)
-    process_url_status(evaluated_status, ok_msg='Service {service} is up and running'.format(service=name),
-                       warning_msg='Service {service} was not found on the swarm'.format(service=name),
-                       critical_msg='Service {service} was not found on the swarm'.format(service=name))
-
-
-def evaluate_url_status(status):
-    good_codes = range(200, 299)
-    if status in good_codes:
-        return OK_RC
-    elif status == 503:
-        return CRITICAL_RC
-    elif status == 404:
-        return CRITICAL_RC
-    else:
-        return UNKNOWN_RC
-
-
-def process_url_status(status, ok_msg=None, warning_msg=None, critical_msg=None, unknown_msg=None):
-    if status == OK_RC:
-        return ok(ok_msg)
-    elif status == WARNING_RC:
-        return warning(warning_msg)
-    elif status == CRITICAL_RC:
-        return critical(critical_msg)
-    else:
-        return unknown(unknown_msg)
-
-
 def process_args(args):
     parser = argparse.ArgumentParser(description='Check docker containers.')
 
@@ -569,21 +521,6 @@ def process_args(args):
                         metavar='WARN:CRIT',
                         help='Container restart thresholds.')
 
-    # Swarm
-    parser.add_argument('--swarm',
-                        dest='swarm',
-                        default=None,
-                        action='store_true',
-                        help='Check swarm status')
-
-    # Service
-    parser.add_argument('--service',
-                        dest='service',
-                        action='store',
-                        type=str,
-                        default=None,
-                        help='Check service status')
-
     if len(args) == 0:
         parser.print_help()
 
@@ -645,12 +582,7 @@ def perform_checks(raw_args):
         try:
             containers = get_containers(args.containers, args.present)
 
-            print(args)
-            if args.swarm:
-                check_swarm()
-            elif args.service:
-                check_service(args.service)
-            elif len(containers) == 0:
+            if len(containers) == 0:
                 unknown("No containers names found matching criteria")
             else:
                 for container in containers:
@@ -686,8 +618,7 @@ def perform_checks(raw_args):
                         check_restarts(container, *parse_thresholds(args.restarts, include_units=False))
 
         except Exception as e:
-            raise e
-        #    unknown("Exception raised during check: {}".format(repr(e)))
+            unknown("Exception raised during check: {}".format(repr(e)))
 
     print_results()
 
