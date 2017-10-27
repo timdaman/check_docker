@@ -2,24 +2,32 @@
 [![Code Climate](https://codeclimate.com/github/timdaman/check_docker/badges/gpa.svg)](https://codeclimate.com/github/timdaman/check_docker)
 [![Test Coverage](https://codeclimate.com/github/timdaman/check_docker/badges/coverage.svg)](https://codeclimate.com/github/timdaman/check_docker/coverage)
 # check_docker
-This a a nagios/NRPE compatible plugin for checking docker containers. So far you can use it to check
 
-- memory consumption in absolute units (bytes, kb, mb, gb) and as a percentage (0-100%)
-  of the container limit.
+Nagios/NRPE compatible plugins for checking docker based services. Currently there are two nagios checks
+
+- check_docker which checks docker container health
+- check_swarm which checks health of swarm nodes and services
+
+With check_docker can use it to check and alert on
+
+- memory consumption in absolute units (bytes, kb, mb, gb) and as a percentage (0-100%) of the container limit.
 - CPU usages as a percentage (0-100%) of container limit.
 - automatic restarts performed by the docker daemon
 - container status, i.e. is it running?
 - container health checks are passing?
 - uptime, i.e. is it able to stay running for a long enough time?
 - the presence of a container or containers matching specified names
-- image version (experimental!), does the running image match that in
-  the remote registry?
+- image version (experimental!), does the running image match that in the remote registry?
 
+With check_swarm you can alert
 
-This check can communicate with a local docker daemon socket file (default) or with local
+- if a node is not joined to a docker swarm
+- if a service is running in a swarm
+
+These checks can communicate with a local docker daemon socket file (default) or with local
 or remote docker daemons using secure and non-secure TCP connections.
 
-This plugin requires python 3. It is tested on 3.3 and greater but may work on older
+These plugins require python 3. It is tested on 3.3 and greater but may work on older
 versions of 3.
 
 ## Installation
@@ -33,15 +41,17 @@ With pip
 With curl
 
     curl -o /usr/local/bin/check_docker https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker
-    chmod a+rx /usr/local/bin/check_docker
+    curl -o /usr/local/bin/check_swarm https://raw.githubusercontent.com/timdaman/check_docker/master/check_swarm
+    chmod a+rx /usr/local/bin/check_docker /usr/local/bin/check_swarm
 
 With wget
 
     wget -O /usr/local/bin/check_docker https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker
-    chmod a+rx /usr/local/bin/check_docker
+    wget -O /usr/local/bin/check_swarm https://raw.githubusercontent.com/timdaman/check_docker/master/check_swarm
+    chmod a+rx /usr/local/bin/check_docker /usr/local/bin/check_swarm
 
 
-## Usage
+## check_docker Usage
 
     usage: check_docker [-h]
                         [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
@@ -83,9 +93,35 @@ With wget
                             images. Only works with public registry.
       --restarts WARN:CRIT  Container restart thresholds.
 
-Gotchas: 
+## check_swarm Usage
 
-* When using this with older versions of docker (I have seen 1.4 and
-1.5) –status only supports ‘running’, ‘restarting’, and ‘paused’.
-* When no container is specified all containers are checked. Some containers will return critcal status because the 
-selected check(s) require a running container. 
+    usage: check_swarm [-h]
+                     [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
+                     | --secure-connection [<ip/host address>:<port>]]
+                     [--timeout TIMEOUT]
+                     (--swarm | --service SERVICE [SERVICE ...])
+    
+    Check docker swarm.
+    
+    optional arguments:
+    -h, --help            show this help message and exit
+    --connection [/<path to>/docker.socket|<ip/host address>:<port>]
+                          Where to find docker daemon socket. (default:
+                          /var/run/docker.sock)
+    --secure-connection [<ip/host address>:<port>]
+                          Where to find TLS protected docker daemon socket.
+    --timeout TIMEOUT     Connection timeout in seconds. (default: 10.0)
+    --swarm               Check swarm status
+    --service SERVICE [SERVICE ...]
+                          One or more RegEx that match the names of the
+                          services(s) to check.
+    usage: check_swarm [-h]
+                     [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
+                     | --secure-connection [<ip/host address>:<port>]]
+                     [--timeout TIMEOUT]
+                     (--swarm | --service SERVICE [SERVICE ...])
+
+Gotchas:
+
+* When using this with older versions of docker (I have seen 1.4 and 1.5) check_docker –status only supports ‘running’, ‘restarting’, and ‘paused’.
+* When no container is specified for check_docker all containers are checked. Some containers will return critcal status because the selected check(s) require a running container.
