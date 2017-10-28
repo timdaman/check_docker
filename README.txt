@@ -7,8 +7,8 @@ check_docker
 
 Nagios/NRPE compatible plugins for checking docker based services. Currently there are two nagios checks
 
--  check_docker which checks docker container health
--  check_swarm which checks health of swarm nodes and services
+-  `check_docker` which checks docker container health
+-  `check_swarm` which checks health of swarm nodes and services
 
 With check_docker can use it to check and alert on
 
@@ -35,7 +35,7 @@ These plugins require python 3. It is tested on 3.3 and greater but may work on 
 versions of 3.
 
 check_docker Usage
------
+------------------
 
 ::
 
@@ -80,7 +80,7 @@ check_docker Usage
     --restarts WARN:CRIT  Container restart thresholds.
 
 check_swarm Usage
------
+-----------------
 
 ::
 
@@ -112,8 +112,8 @@ check_swarm Usage
 
 Gotchas:
 
--  When using this with older versions of docker (I have seen 1.4 and 1.5) check_docker –status only supports ‘running’, ‘restarting’, and ‘paused’.
--  When no container is specified for check_docker all containers are checked. Some containers will return critcal status because the selected check(s) require a running container.
+-  When using check_docker with older versions of docker (I have seen 1.4 and 1.5) –status only supports ‘running’, ‘restarting’, and ‘paused’.
+-  When using check_docker, if no container is specified, all containers are checked. Some containers may return critcal status if the selected check(s) require a running container.
 
 .. |Build Status| image:: https://travis-ci.org/timdaman/check_docker.svg?branch=master
    :target: https://travis-ci.org/timdaman/check_docker
