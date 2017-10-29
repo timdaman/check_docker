@@ -251,20 +251,20 @@ class TestPerform(fake_filesystem_unittest.TestCase):
                 
     def test_check_service_results_OK(self):
         args = ['--service', 'FOO']
-        with patch('check_swarm.get_services', return_value=(['FOO','BAR'], 200)):
+        with patch('check_swarm.get_services', return_value=['FOO','BAR']):
             with patch('check_swarm.get_service_info', return_value=(self.service, 200)):
                     check_swarm.perform_checks(args)
                     self.assertEqual(check_swarm.rc, check_swarm.OK_RC)
 
     def test_check_service_results_FAIL_missing(self):
         args = ['--service', 'missing1']
-        with patch('check_swarm.get_service_info', return_value=('', 404)):
+        with patch('check_swarm.get_url', return_value=(self.services, 200)):
                 check_swarm.perform_checks(args)
                 self.assertEqual(check_swarm.rc, check_swarm.CRITICAL_RC)
 
     def test_check_service_results_FAIL_unknown(self):
         args = ['--service', 'FOO']
-        with patch('check_swarm.get_services', return_value=(['FOO','BAR'], 200)):
+        with patch('check_swarm.get_services', return_value=['FOO','BAR']):
             with patch('check_swarm.get_service_info', return_value=('', 500)):
                 check_swarm.perform_checks(args)
                 self.assertEqual(check_swarm.rc, check_swarm.UNKNOWN_RC)
