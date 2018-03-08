@@ -20,8 +20,7 @@ With check_docker can use it to check and alert on
 -  container health checks are passing?
 -  uptime, i.e. is it able to stay running for a long enough time?
 -  the presence of a container or containers matching specified names
--  image version (experimental!), does the running image match that in
-   the remote registry?
+-  image version, does the running image match that in the remote registry?
 
 With check_swarm you can alert
 
@@ -39,45 +38,55 @@ check_docker Usage
 
 ::
 
-  usage: check_docker [-h]
-                      [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
-                      | --secure-connection [<ip/host address>:<port>]]
-                      [--timeout TIMEOUT]
-                      [--containers CONTAINERS [CONTAINERS ...]] [--present]
-                      [--cpu WARN:CRIT] [--memory WARN:CRIT:UNITS]
-                      [--status STATUS] [--health] [--uptime WARN:CRIT]
-                      [--version] [--restarts WARN:CRIT]
+usage: check_docker [-h]
+                    [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
+                    | --secure-connection [<ip/host address>:<port>]]
+                    [--binary_units | --decimal_units] [--timeout TIMEOUT]
+                    [--containers CONTAINERS [CONTAINERS ...]] [--present]
+                    [--cpu WARN:CRIT] [--memory WARN:CRIT:UNITS]
+                    [--status STATUS] [--health] [--uptime WARN:CRIT]
+                    [--version]
+                    [--insecure-registries INSECURE_REGISTRIES [INSECURE_REGISTRIES ...]]
+                    [--restarts WARN:CRIT]
 
-  Check docker containers.
+Check docker containers.
 
-  optional arguments:
-    -h, --help            show this help message and exit
-    --connection [/<path to>/docker.socket|<ip/host address>:<port>]
-                          Where to find docker daemon socket. (default:
-                          /var/run/docker.sock)
-    --secure-connection [<ip/host address>:<port>]
-                          Where to find TLS protected docker daemon socket.
-    --timeout TIMEOUT     Connection timeout in seconds. (default: 10.0)
-    --containers CONTAINERS [CONTAINERS ...]
-                          One or more RegEx that match the names of the
-                          container(s) to check. If omitted all containers are
-                          checked. (default: ['all'])
-    --present             Modifies --containers so that each RegEx must match at
-                          least one container.
-    --cpu WARN:CRIT       Check cpu usage percentage taking into account any
-                          limits. Valid values are 0 - 100.
-    --memory WARN:CRIT:UNITS
-                          Check memory usage taking into account any limits.
-                          Valid values for units are %,b,k,m,g.
-    --status STATUS       Desired container status (running, exited, etc).
-                          (default: None)
-    --health              Check container's health check status
-    --uptime WARN:CRIT    Minimum container uptime in seconds. Use when
-                          infrequent crashes are tolerated.
-    --version             Check if the running images are the same version as
-                          those in the registry. Useful for finding stale
-                          images. Only works with public registry.
-    --restarts WARN:CRIT  Container restart thresholds.
+optional arguments:
+  -h, --help            show this help message and exit
+  --connection [/<path to>/docker.socket|<ip/host address>:<port>]
+                        Where to find docker daemon socket. (default:
+                        /var/run/docker.sock)
+  --secure-connection [<ip/host address>:<port>]
+                        Where to find TLS protected docker daemon socket.
+  --binary_units        Use a base of 1024 when doing calculations of KB, MB,
+                        GB, & TB (This is default)
+  --decimal_units       Use a base of 1000 when doing calculations of KB, MB,
+                        GB, & TB
+  --timeout TIMEOUT     Connection timeout in seconds. (default: 10.0)
+  --containers CONTAINERS [CONTAINERS ...]
+                        One or more RegEx that match the names of the
+                        container(s) to check. If omitted all containers are
+                        checked. (default: ['all'])
+  --present             Modifies --containers so that each RegEx must match at
+                        least one container.
+  --cpu WARN:CRIT       Check cpu usage percentage taking into account any
+                        limits. Valid values are 0 - 100.
+  --memory WARN:CRIT:UNITS
+                        Check memory usage taking into account any limits.
+                        Valid values for units are %,B,KB,MB,GB.
+  --status STATUS       Desired container status (running, exited, etc).
+                        (default: None)
+  --health              Check container's health check status
+  --uptime WARN:CRIT    Minimum container uptime in seconds. Use when
+                        infrequent crashes are tolerated.
+  --version             Check if the running images are the same version as
+                        those in the registry. Useful for finding stale
+                        images. Does not support login.
+  --insecure-registries INSECURE_REGISTRIES [INSECURE_REGISTRIES ...]
+                        List of registries to connect to with http(no TLS).
+                        Useful when using "--version" with images from
+                        insecure registries.
+  --restarts WARN:CRIT  Container restart thresholds.
 
 check_swarm Usage
 -----------------

@@ -16,7 +16,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2017"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "1.0.5"
+__version__ = "2.0.0"
 
 '''
 nrpe compatible check for docker swarm
@@ -91,7 +91,7 @@ better_urllib_head.add_handler(SocketFileHandler())
 @lru_cache()
 def get_url(url):
     response = better_urllib_get.open(url, timeout=timeout)
-    return process_urllib_response(response), response.code
+    return process_urllib_response(response), response.status
 
 
 def process_urllib_response(response):
