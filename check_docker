@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 import os
 import stat
-from collections import deque
+import traceback
+from collections import deque, namedtuple
 from datetime import datetime, timezone
 import logging
 from sys import argv
 from http.client import HTTPConnection
-from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
+from urllib.error import HTTPError, URLError
+from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector, HTTPRedirectHandler, Request, \
+    HTTPDefaultErrorHandler, HTTPErrorProcessor
 import argparse
 import json
 import socket
@@ -18,7 +21,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2017"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "1.0.5"
+__version__ = "2.0.0"
 
 '''
 nrpe compatible check for docker containers.
@@ -32,17 +35,22 @@ dependency.
 DEFAULT_SOCKET = '/var/run/docker.sock'
 DEFAULT_TIMEOUT = 10.0
 DEFAULT_PORT = 2375
-DEFAULT_MEMORY_UNITS = 'b'
+DEFAULT_MEMORY_UNITS = 'B'
 DEFAULT_HEADERS = [('Accept', 'application/vnd.docker.distribution.manifest.v2+json')]
-DEFAULT_PUBLIC_REGISTRY = 'https://index.docker.io'
+DEFAULT_PUBLIC_REGISTRY = 'registry-1.docker.io'
 DEFAULT_PUBLIC_AUTH = 'https://auth.docker.io'
-UNIT_ADJUSTMENTS = {
-    '%': 1,
-    'b': 1,
-    'k': 1024,
-    'm': 1024 * 1024,
-    'g': 1024 * 1024 * 1024
+
+# The second value is the power to raise the base to.
+UNIT_ADJUSTMENTS_TEMPLATE = {
+    '%': 0,
+    'B': 0,
+    'KB': 1,
+    'MB': 2,
+    'GB': 3,
+    'TB': 4
 }
+unit_adjustments = None
+
 OK_RC = 0
 WARNING_RC = 1
 CRITICAL_RC = 2
@@ -52,6 +60,8 @@ UNKNOWN_RC = 3
 rc = -1
 messages = []
 performance_data = []
+
+ImageName = namedtuple('ImageName', "registry name tag full_name")
 
 
 # Hacked up urllib to handle sockets
@@ -81,10 +91,36 @@ class SocketFileHandler(AbstractHTTPHandler):
         return self.do_open(self.SocketFileToHttpConnectionAdaptor, req)
 
 
+# Got some help from this example https://gist.github.com/FiloSottile/2077115
+class HeadRequest(Request):
+    def get_method(self):
+        return "HEAD"
+
+
+class HEADRedirectHandler(HTTPRedirectHandler):
+    """
+    Subclass the HTTPRedirectHandler to make it use our
+    HeadRequest also on the redirected URL
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if code in (301, 302, 303, 307):
+            newurl = newurl.replace(' ', '%20')
+            newheaders = dict((k, v) for k, v in req.headers.items()
+                              if k.lower() not in ("content-length", "content-type"))
+            return HeadRequest(newurl,
+                               headers=newheaders,
+                               origin_req_host=req.get_origin_req_host(),
+                               unverifiable=True)
+        else:
+            raise HTTPError(req.get_full_url(), code, msg, headers, fp)
+
+
 better_urllib_get = OpenerDirector()
 better_urllib_get.addheaders = DEFAULT_HEADERS.copy()
 better_urllib_get.add_handler(HTTPHandler())
 better_urllib_get.add_handler(HTTPSHandler())
+better_urllib_get.add_handler(HTTPRedirectHandler())
 better_urllib_get.add_handler(SocketFileHandler())
 
 better_urllib_head = OpenerDirector()
@@ -92,6 +128,9 @@ better_urllib_head.method = 'HEAD'
 better_urllib_head.addheaders = DEFAULT_HEADERS.copy()
 better_urllib_head.add_handler(HTTPHandler())
 better_urllib_head.add_handler(HTTPSHandler())
+better_urllib_head.add_handler(HTTPDefaultErrorHandler())
+better_urllib_head.add_handler(HTTPRedirectHandler())
+better_urllib_head.add_handler(HTTPErrorProcessor())
 better_urllib_head.add_handler(SocketFileHandler())
 
 
@@ -132,39 +171,45 @@ def parse_thresholds(spec, include_units=True, units_required=True):
 
 def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min=None, max=None, units='',
                                 greater_than=True):
-    perf_string = "{}_{}={}{};{};{}".format(container, short_name, value, units, warn, crit)
+
+    # Some units don't have decimal places
+    rounded_value = int(value) if units in ['B','%', None] else round(value, 2)
+
+    perf_string = "{}_{}={}{};{};{}".format(container, short_name, rounded_value, units, warn, crit)
     if min is not None:
         perf_string += ';{}'.format(min)
         if max is not None:
             perf_string += ';{}'.format(max)
+    global performance_data
     performance_data.append(perf_string)
 
     if greater_than:
         if value >= crit:
-            critical("{} {} is {}{}".format(container, name, value, units))
+            critical("{} {} is {}{}".format(container, name, rounded_value, units))
         elif value >= warn:
-            warning("{} {} is {}{}".format(container, name, value, units))
+            warning("{} {} is {}{}".format(container, name, rounded_value, units))
         else:
-            ok("{} {} is {}{}".format(container, name, value, units))
+            ok("{} {} is {}{}".format(container, name, rounded_value, units))
     else:
         if value <= crit:
-            critical("{} {} is {}{}".format(container, name, value, units))
+            critical("{} {} is {}{}".format(container, name, rounded_value, units))
         elif value <= warn:
-            warning("{} {} is {}{}".format(container, name, value, units))
+            warning("{} {} is {}{}".format(container, name, rounded_value, units))
         else:
-            ok("{} {} is {}{}".format(container, name, value, units))
+            ok("{} {} is {}{}".format(container, name, rounded_value, units))
 
 
 @lru_cache()
 def get_url(url):
     response = better_urllib_get.open(url, timeout=timeout)
-    return process_urllib_response(response), response.code
+    return process_urllib_response(response), response.status
 
 
 @lru_cache()
 def head_url(url, auth_token=None):
     if auth_token:
         better_urllib_head.addheaders.append(('Authorization', 'Bearer ' + auth_token))
+    # Follow redirects
     response = better_urllib_head.open(url, timeout=timeout)
     if auth_token:
         better_urllib_head.addheaders.pop()
@@ -189,11 +234,12 @@ def get_image_info(name):
 
 
 @lru_cache()
-def get_manifest_auth_token(image_name, auth_source, registry='registry.docker.io', action='pull'):
-    url = "{auth_source}/token?service={registry}&scope=repository:{image_name}:{action}".format(
-        auth_source=auth_source, registry=registry, image_name=image_name, action=action)
-    logger.debug(url)
-    response, _ = get_url(url)
+def get_manifest_auth_token(www_authenticate_header):
+    # TODO: Pass the error on to be handled better
+    assert 'Bearer realm=' in www_authenticate_header, "Auth header is not one I can process"
+    header_list = www_authenticate_header.replace('Bearer realm=', '').replace('"', '').split(',')
+    auth_url = header_list[0] + '?' + '&'.join(header_list[1:])
+    response, _ = get_url(auth_url)
     return response['token']
 
 
@@ -204,6 +250,7 @@ def get_state(container):
 def get_stats(container):
     content, _ = get_url(daemon + '/containers/{container}/stats?stream=0'.format(container=container))
     return content
+
 
 def get_containers(names, require_present):
     containers_list, _ = get_url(daemon + '/containers/json?all=1')
@@ -223,6 +270,63 @@ def get_containers(names, require_present):
             critical("No containers match {}".format(matcher))
 
     return filtered
+
+
+def get_container_digest(container):
+    # find registry and tag
+    inspection = get_container_info(container)
+    image_id = inspection['Image']
+    image_info = get_image_info(image_id)
+    try:
+        return image_info['RepoDigests'][0].split('@')[1]
+    except IndexError:
+        return None
+
+
+def get_container_image_urls(container):
+    inspection = get_container_info(container)
+    image_id = inspection['Image']
+    image_info = get_image_info(image_id)
+    return image_info['RepoTags']
+
+
+def normalize_image_name_to_manifest_url(image_name, insecure_registries):
+    parsed_url = parse_image_name(image_name)
+
+    lower_insecure = [reg.lower() for reg in insecure_registries]
+
+    # Registry query url
+    scheme = 'http' if parsed_url.registry.lower() in lower_insecure else 'https'
+    url = '{scheme}://{registry}/v2/{image_name}/manifests/{image_tag}'.format(scheme=scheme,
+                                                                               registry=parsed_url.registry,
+                                                                               image_name=parsed_url.name,
+                                                                               image_tag=parsed_url.tag)
+    return url, parsed_url.registry
+
+
+def get_digest_from_registry(url):
+    # query registry
+    try:
+        registry_info = head_url(url=url)
+    except HTTPError as e:
+        if e.code == 401:  # Convert unauthorized response to regular response
+            registry_info = e.fp
+        else:
+            raise e
+
+    if registry_info.status == 401:  # HTTP unauthorized
+
+        # Find auth server
+        # TODO: Handle logging in if needed
+        www_authenticate_header = registry_info.headers.get('Www-Authenticate')
+        # Get auth token
+        token = get_manifest_auth_token(www_authenticate_header)
+
+        # query registry again
+        registry_info = head_url(url=url, auth_token=token)
+
+    registry_hash = registry_info.getheader('Docker-Content-Digest', None)
+    return registry_hash
 
 
 def set_rc(new_rc):
@@ -258,12 +362,52 @@ def require_running(name):
                 func(container, *args, **kwargs)
             else:
                 # container is not running, can't perform check
-                critical('{container} is not "running", cannot check {check}")'.format(container=container,
-                                                                                       check=name))
+                critical('{container} is not "running", cannot check {check}"'.format(container=container,
+                                                                                      check=name))
 
         return wrapper
 
     return inner_decorator
+
+
+def parse_image_name(image_name):
+    """
+    Parses image names into their constituent parts.
+    :param image_name:
+    :return: ImageName
+    """
+
+    # These are based on information found here
+    #   https://docs.docker.com/engine/reference/commandline/tag/#extended-description
+    #   https://github.com/docker/distribution/blob/master/reference/regexp.go
+    host_segment_re = '[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?'
+    hostname_re = '({host_segment}\.)+{host_segment}'.format(host_segment=host_segment_re)
+    registry_re = '((?P<registry>({hostname_re}(:\d+)?|{host_segment_re}:\d+))/)'.format(
+        host_segment_re=host_segment_re, hostname_re=hostname_re)
+    name_component_ends_re = '[a-z0-9]'
+    name_component_middle_re = '[a-z0-9._-]'  # Ignoring spec limit of two _
+    name_component_re = '({end}{middle}*{end}|{end})'.format(end=name_component_ends_re,
+                                                             middle=name_component_middle_re)
+    image_name_re = "(?P<image_name>({name_component}/)*{name_component})".format(name_component=name_component_re)
+    image_tag_re = '(?P<image_tag>[a-zA-Z0-9_][a-zA-Z0-9_.-]*)'
+    full_re = '^{registry}?{image_name}(:{image_tag})?$'.format(registry=registry_re, image_name=image_name_re,
+                                                                image_tag=image_tag_re)
+    parsed = re.match(full_re, image_name)
+
+    registry = parsed.group('registry') if parsed.group('registry') else DEFAULT_PUBLIC_REGISTRY
+
+    image_name = parsed.group('image_name')
+    image_name = image_name if '/' in image_name or registry != DEFAULT_PUBLIC_REGISTRY else 'library/' + image_name
+
+    image_tag = parsed.group('image_tag')
+    image_tag = image_tag if image_tag else 'latest'
+
+    full_image_name = "{registry}/{image_name}:{image_tag}".format(
+        registry=registry,
+        image_name=image_name,
+        image_tag=image_tag)
+
+    return ImageName(registry=registry, name=image_name, tag=image_tag, full_name=full_image_name)
 
 
 # Checks
@@ -271,16 +415,20 @@ def require_running(name):
 
 @require_running(name='memory')
 def check_memory(container, warn, crit, units):
-    assert units in UNIT_ADJUSTMENTS, "Invalid memory units"
+    if not units in unit_adjustments:
+        unknown("Memory units must be one of  {}".format(list(unit_adjustments.keys())))
+        return
 
     inspection = get_stats(container)
 
+    # Subtracting cache to match `docker stats` does.
+    adjusted_usage = inspection['memory_stats']['usage'] - inspection['memory_stats']['stats']['total_cache']
     if units == '%':
         max = 100
-        usage = int(100 * inspection['memory_stats']['usage'] / inspection['memory_stats']['limit'])
+        usage = int(100 * adjusted_usage / inspection['memory_stats']['limit'])
     else:
-        max = inspection['memory_stats']['limit'] / UNIT_ADJUSTMENTS[units]
-        usage = inspection['memory_stats']['usage'] / UNIT_ADJUSTMENTS[units]
+        max = inspection['memory_stats']['limit'] / unit_adjustments[units]
+        usage = adjusted_usage / unit_adjustments[units]
 
     evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units=units, name='memory',
                                 short_name='mem', min=0, max=max)
@@ -345,35 +493,39 @@ def check_restarts(container, warn, crit, units=None):
                                 short_name='re', min=0, max=graph_padding)
 
 
-def check_version(container):
-    # find registry and tag
-    inspection = get_container_info(container)
-    image_id = inspection['Image']
-    image_inspection = get_image_info(image_id)
-    image_tag = image_inspection['RepoTags'][0]
-    try:
-        image_digest = image_inspection['RepoDigests'][0].split('@')[1]
-    except IndexError:
+def check_version(container, insecure_registries):
+    image_digest = get_container_digest(container)
+    if image_digest is None:
         unknown('Checksum missing for "{}", try doing a pull'.format(container))
         return
 
-    registry = DEFAULT_PUBLIC_REGISTRY
-    full_image_tag = 'library/' + image_tag
+    image_urls = get_container_image_urls(container=container)
+    if len(image_urls) > 1:
+        unknown('"{}" has multiple tags/names. Unsure which one to use to check the version.'.format(container))
+        return
+    elif len(image_urls) == 0:
+        unknown('"{}" has last no repository tag. Is this anywhere else?'.format(container))
+        return
 
-    image_name, image_version = full_image_tag.split(':')
+    url, registry = normalize_image_name_to_manifest_url(image_urls[0], insecure_registries)
 
-    token = get_manifest_auth_token(image_name, DEFAULT_PUBLIC_AUTH)
+    try:
+        registry_hash = get_digest_from_registry(url)
+    except URLError as e:
+        if e.reason.reason == 'UNKNOWN_PROTOCOL':
+            unknown(
+                "TLS error connecting to registry {} for {}, should you use the '--insecure-registry' flag?" \
+                    .format(registry, container))
+            return
 
-    # query registry
-    url = '{registry}/v2/{image_name}/manifests/{image_version}'.format(registry=registry, image_name=image_name,
-                                                                        image_version=image_version)
-    reg_info = head_url(url=url, auth_token=token)
-
-    registry_hash = reg_info.getheader('Docker-Content-Digest', None)
     if registry_hash is None:
-        raise IndexError('Docker-Content-Digest header missing, cannot check version')
-    if registry_hash != image_digest:
-        critical("{} is out of date".format(container))
+        unknown("Cannot check version, Registry didn't return 'Docker-Content-Digest header for {} while checking {}." \
+                .format(container, url))
+        return
+    if registry_hash == image_digest:
+        ok("{}'s version matches registry".format(container))
+        return
+    critical("{}'s version does not match registry".format(container))
 
 
 def calculate_cpu_capacity_precentage(info, stats):
@@ -444,6 +596,20 @@ def process_args(args):
                                   metavar='[<ip/host address>:<port>]',
                                   help='Where to find TLS protected docker daemon socket.')
 
+    base_group = parser.add_mutually_exclusive_group()
+    base_group.add_argument('--binary_units',
+                            dest='units_base',
+                            action='store_const',
+                            const=1024,
+                            help='Use a base of 1024 when doing calculations of KB, MB, GB, & TB (This is default)')
+
+    base_group.add_argument('--decimal_units',
+                            dest='units_base',
+                            action='store_const',
+                            const=1000,
+                            help='Use a base of 1000 when doing calculations of KB, MB, GB, & TB')
+    parser.set_defaults(units_base=1024)
+
     # Connection timeout
     parser.add_argument('--timeout',
                         dest='timeout',
@@ -482,7 +648,7 @@ def process_args(args):
                         action='store',
                         type=str,
                         metavar='WARN:CRIT:UNITS',
-                        help='Check memory usage taking into account any limits. Valid values for units are %%,b,k,m,g.')
+                        help='Check memory usage taking into account any limits. Valid values for units are %%,B,KB,MB,GB.')
 
     # State
     parser.add_argument('--status',
@@ -511,7 +677,16 @@ def process_args(args):
                         dest='version',
                         default=None,
                         action='store_true',
-                        help='Check if the running images are the same version as those in the registry. Useful for finding stale images. Only works with public registry.')
+                        help='Check if the running images are the same version as those in the registry. Useful for finding stale images. Does not support login.')
+
+    # Version
+    parser.add_argument('--insecure-registries',
+                        dest='insecure_registries',
+                        action='store',
+                        nargs='+',
+                        type=str,
+                        default=[],
+                        help='List of registries to connect to with http(no TLS). Useful when using "--version" with images from insecure registries.')
 
     # Restart
     parser.add_argument('--restarts',
@@ -572,6 +747,10 @@ def print_results():
 
 def perform_checks(raw_args):
     args = process_args(raw_args)
+
+    global unit_adjustments
+    unit_adjustments = {key: args.units_base ** value for key, value in UNIT_ADJUSTMENTS_TEMPLATE.items()}
+
     if socketfile_permissions_failure(args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
     elif no_checks_present(args):
@@ -593,7 +772,7 @@ def perform_checks(raw_args):
 
                     # Check version
                     if args.version:
-                        check_version(container)
+                        check_version(container, args.insecure_registries)
 
                     # below are checks that require a 'running' status
 
@@ -618,9 +797,11 @@ def perform_checks(raw_args):
                         check_restarts(container, *parse_thresholds(args.restarts, include_units=False))
 
         except Exception as e:
-            unknown("Exception raised during check: {}".format(repr(e)))
+            traceback.print_exc()
+            unknown("Exception raised during check': {}".format(repr(e)))
 
     print_results()
+
 
 if __name__ == '__main__':
     perform_checks(argv[1:])

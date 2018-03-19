@@ -4,11 +4,10 @@ python:
   - "3.4"
   - "3.5"
   - "3.6"
+  - "3.7-dev"
 install:
-  - pip install codeclimate-test-reporter coverage==4.3.4 pyfakefs
+  - pip install codeclimate-test-reporter coverage==4.3.4 pyfakefs pytest
 # command to run tests
 script:
-  - COVERAGE_FILE=.coverage.check_docker coverage run ./test_check_docker.py
-  - COVERAGE_FILE=.coverage.check_swarm coverage run ./test_check_swarm.py
-  - coverage combine .coverage.check_*
+  - coverage run --include='check_*' -m pytest
   - codeclimate-test-reporter || echo "Ignoring Code Climate reporter upload failure"
