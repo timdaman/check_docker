@@ -1,0 +1,6 @@
+[run]
+include =
+  check_docker/check_*.py
+omit =
+  check_docker/tests/*
+  */__init__.py

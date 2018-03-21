@@ -40,29 +40,29 @@ With pip
 
 With curl
 
-    curl -o /usr/local/bin/check_docker https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker
-    curl -o /usr/local/bin/check_swarm https://raw.githubusercontent.com/timdaman/check_docker/master/check_swarm
+    curl -o /usr/local/bin/check_docker https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker/check_docker.py
+    curl -o /usr/local/bin/check_swarm https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker/check_swarm.py
     chmod a+rx /usr/local/bin/check_docker /usr/local/bin/check_swarm
 
 With wget
 
-    wget -O /usr/local/bin/check_docker https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker
-    wget -O /usr/local/bin/check_swarm https://raw.githubusercontent.com/timdaman/check_docker/master/check_swarm
+    wget -O /usr/local/bin/check_docker https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker/check_docker.py
+    wget -O /usr/local/bin/check_swarm https://raw.githubusercontent.com/timdaman/check_docker/master/check_docker/check_swarm.py
     chmod a+rx /usr/local/bin/check_docker /usr/local/bin/check_swarm
 
 
 ## check_docker Usage
 
-    usage: check_docker [-h]
-                        [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
-                        | --secure-connection [<ip/host address>:<port>]]
-                        [--binary_units | --decimal_units] [--timeout TIMEOUT]
-                        [--containers CONTAINERS [CONTAINERS ...]] [--present]
-                        [--cpu WARN:CRIT] [--memory WARN:CRIT:UNITS]
-                        [--status STATUS] [--health] [--uptime WARN:CRIT]
-                        [--version]
-                        [--insecure-registries INSECURE_REGISTRIES [INSECURE_REGISTRIES ...]]
-                        [--restarts WARN:CRIT]
+    usage: check_docker.py [-h]
+                           [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
+                           | --secure-connection [<ip/host address>:<port>]]
+                           [--binary_units | --decimal_units] [--timeout TIMEOUT]
+                           [--containers CONTAINERS [CONTAINERS ...]] [--present]
+                           [--threads THREADS] [--cpu WARN:CRIT]
+                           [--memory WARN:CRIT:UNITS] [--status STATUS] [--health]
+                           [--uptime WARN:CRIT] [--version]
+                           [--insecure-registries INSECURE_REGISTRIES [INSECURE_REGISTRIES ...]]
+                           [--restarts WARN:CRIT]
 
     Check docker containers.
 
@@ -84,13 +84,14 @@ With wget
                             checked. (default: ['all'])
       --present             Modifies --containers so that each RegEx must match at
                             least one container.
+      --threads THREADS     This + 1 is the maximum number of concurent
+                            threads/network connections. (default: 10)
       --cpu WARN:CRIT       Check cpu usage percentage taking into account any
                             limits. Valid values are 0 - 100.
       --memory WARN:CRIT:UNITS
                             Check memory usage taking into account any limits.
                             Valid values for units are %,B,KB,MB,GB.
       --status STATUS       Desired container status (running, exited, etc).
-                            (default: None)
       --health              Check container's health check status
       --uptime WARN:CRIT    Minimum container uptime in seconds. Use when
                             infrequent crashes are tolerated.

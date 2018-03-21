@@ -4,5 +4,9 @@ languages:
   PHP: true
   Python: true
 exclude_paths:
-- "test_check_docker.py"
-- "test_check_swarm.py"
+- "check_docker/tests/*"
+plugins:
+  radon:
+    enabled: true
+  sonar-python:
+    enabled: true

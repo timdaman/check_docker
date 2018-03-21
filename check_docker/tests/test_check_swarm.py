@@ -5,20 +5,17 @@ import stat
 from unittest.mock import patch
 from urllib.error import HTTPError
 
+import os
 import pytest
-from importlib.machinery import SourceFileLoader
+from check_docker import check_swarm as cs
 from urllib import request
 
 __author__ = 'tim'
 
-# This is needed because `check_swarm` does not end a a .py so it won't be found by default1
-cs = SourceFileLoader('check_swarm', './check_swarm').load_module()
-
-
 @pytest.fixture
 def check_swarm():
     # This is needed because `check_docker` does not end a a .py so it won't be found by default
-    check_swarm = SourceFileLoader('check_swarm', './check_swarm').load_module()
+    from check_docker import check_swarm
     check_swarm.rc = -1
     check_swarm.timeout = 1
     check_swarm.messages = []
@@ -48,26 +45,26 @@ def test_get_url(check_swarm, monkeypatch):
 
 
 def test_get_swarm_status(check_swarm):
-    with patch('check_swarm.get_url', return_value=('', 999)):
+    with patch('check_docker.check_swarm.get_url', return_value=('', 999)):
         response = check_swarm.get_swarm_status()
         assert response == 999
 
 
 def test_get_service_info(check_swarm):
-    with patch('check_swarm.get_url', return_value=('FOO', 999)):
+    with patch('check_docker.check_swarm.get_url', return_value=('FOO', 999)):
         response_data, response_status = check_swarm.get_service_info('FOO')
         assert response_data == 'FOO'
         assert response_status == 999
 
 
 def test_get_services_not_swarm(check_swarm):
-    with patch('check_swarm.get_url', return_value=('', 406)):
+    with patch('check_docker.check_swarm.get_url', return_value=('', 406)):
         check_swarm.get_services('FOO')
         assert check_swarm.rc == check_swarm.CRITICAL_RC
 
 
 def test_get_services_error(check_swarm):
-    with patch('check_swarm.get_url', return_value=('', 500)):
+    with patch('check_docker.check_swarm.get_url', return_value=('', 500)):
         check_swarm.get_services('FOO')
         assert check_swarm.rc == check_swarm.UNKNOWN_RC
 
@@ -75,7 +72,7 @@ def test_get_services_error(check_swarm):
 def test_get_services_all(check_swarm):
     services = [{'Spec': {"Name": 'FOO'}},
                 {'Spec': {"Name": 'BAR'}}]
-    with patch('check_swarm.get_url', return_value=(services, 200)):
+    with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
         result = check_swarm.get_services('all')
         assert len(result) == len(services)
 
@@ -216,8 +213,8 @@ def services():
 def test_check_swarm_called(check_swarm, fs, services):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--swarm']
-    with patch('check_swarm.get_url', return_value=(services, 200)):
-        with patch('check_swarm.check_swarm') as patched:
+    with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
+        with patch('check_docker.check_swarm.check_swarm') as patched:
             check_swarm.perform_checks(args)
             assert patched.call_count == 1
 
@@ -225,7 +222,7 @@ def test_check_swarm_called(check_swarm, fs, services):
 def test_check_swarm_results_OK(check_swarm, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--swarm']
-    with patch('check_swarm.get_swarm_status', return_value=200):
+    with patch('check_docker.check_swarm.get_swarm_status', return_value=200):
         check_swarm.perform_checks(args)
         assert check_swarm.rc == cs.OK_RC
 
@@ -233,7 +230,7 @@ def test_check_swarm_results_OK(check_swarm, fs):
 def test_check_swarm_results_CRITICAL(check_swarm, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--swarm']
-    with patch('check_swarm.get_swarm_status', return_value=406):
+    with patch('check_docker.check_swarm.get_swarm_status', return_value=406):
         check_swarm.perform_checks(args)
         assert check_swarm.rc == cs.CRITICAL_RC
 
@@ -241,8 +238,8 @@ def test_check_swarm_results_CRITICAL(check_swarm, fs):
 def test_check_service_called(check_swarm, services, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'FOO']
-    with patch('check_swarm.get_url', return_value=(services, 200)):
-        with patch('check_swarm.check_service') as patched:
+    with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
+        with patch('check_docker.check_swarm.check_service') as patched:
             check_swarm.perform_checks(args)
             assert patched.call_count == 1
 
@@ -250,8 +247,8 @@ def test_check_service_called(check_swarm, services, fs):
 def test_check_service_results_OK(check_swarm, services, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'FOO']
-    with patch('check_swarm.get_services', return_value=['FOO', 'BAR']):
-        with patch('check_swarm.get_service_info', return_value=(services, 200)):
+    with patch('check_docker.check_swarm.get_services', return_value=['FOO', 'BAR']):
+        with patch('check_docker.check_swarm.get_service_info', return_value=(services, 200)):
             check_swarm.perform_checks(args)
             assert check_swarm.rc == cs.OK_RC
 
@@ -259,7 +256,7 @@ def test_check_service_results_OK(check_swarm, services, fs):
 def test_check_service_results_FAIL_missing(check_swarm, services, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing1']
-    with patch('check_swarm.get_url', return_value=(services, 200)):
+    with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
         check_swarm.perform_checks(args)
         assert check_swarm.rc == cs.CRITICAL_RC
 
@@ -267,8 +264,8 @@ def test_check_service_results_FAIL_missing(check_swarm, services, fs):
 def test_check_service_results_FAIL_unknown(check_swarm, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'FOO']
-    with patch('check_swarm.get_services', return_value=['FOO', 'BAR']):
-        with patch('check_swarm.get_service_info', return_value=('', 500)):
+    with patch('check_docker.check_swarm.get_services', return_value=['FOO', 'BAR']):
+        with patch('check_docker.check_swarm.get_service_info', return_value=('', 500)):
             check_swarm.perform_checks(args)
             assert check_swarm.rc == cs.UNKNOWN_RC
 
@@ -276,7 +273,7 @@ def test_check_service_results_FAIL_unknown(check_swarm, fs):
 def test_check_no_services(check_swarm,fs ):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing2']
-    with patch('check_swarm.get_url', return_value=([], 200)):
+    with patch('check_docker.check_swarm.get_url', return_value=([], 200)):
         check_swarm.perform_checks(args)
         assert check_swarm.rc == cs.CRITICAL_RC
 
@@ -284,7 +281,7 @@ def test_check_no_services(check_swarm,fs ):
 def test_check_missing_service(check_swarm, services, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing3']
-    with patch('check_swarm.get_url', return_value=(services, 200)):
+    with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
         check_swarm.perform_checks(args)
         assert check_swarm.rc == cs.CRITICAL_RC
 
@@ -292,7 +289,7 @@ def test_check_missing_service(check_swarm, services, fs):
 def test_check_not_swarm_service(check_swarm, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing4']
-    with patch('check_swarm.get_url', return_value=('', 406)):
+    with patch('check_docker.check_swarm.get_url', return_value=('', 406)):
         check_swarm.perform_checks(args)
         assert check_swarm.rc == cs.CRITICAL_RC
 
@@ -310,12 +307,15 @@ def test_print_results(check_swarm, capsys, messages, perf_data, expected):
     assert out.strip() == expected
 
 
+@pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
+                    reason="Can not reach Python packge index when isolated")
 def test_package_present():
     req = request.Request("https://pypi.python.org/pypi?:action=doap&name=check_docker", method="HEAD")
     with request.urlopen(req) as resp:
         assert resp.getcode() == 200
 
-
+@pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
+                    reason="Can not reach Python packge index when isolated")
 def test_ensure_new_version():
     version = cs.__version__
     req = request.Request("https://pypi.python.org/pypi?:action=doap&name=check_docker&version={version}".
