@@ -6,8 +6,9 @@ python:
   - "3.6"
   - "3.7-dev"
 install:
-  - pip install codeclimate-test-reporter coverage==4.3.4 pyfakefs pytest
+  - pip install -r dev_requirements.txt
+  - pip install codeclimate-test-reporter coverage==4.3.4
 # command to run tests
 script:
-  - coverage run --include='check_*' -m pytest
+  - py.test --cov=check_docker
   - codeclimate-test-reporter || echo "Ignoring Code Climate reporter upload failure"

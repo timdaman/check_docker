@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-import os
-import stat
-import traceback
-from collections import deque, namedtuple
-from datetime import datetime, timezone
-import logging
-from sys import argv
-from http.client import HTTPConnection
-from urllib.error import HTTPError, URLError
-from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector, HTTPRedirectHandler, Request, \
-    HTTPDefaultErrorHandler, HTTPErrorProcessor
 import argparse
 import json
-import socket
-from functools import lru_cache
+import logging
+# logging.basicConfig(level=logging.DEBUG)
+import math
+import os
 import re
+import socket
+import stat
+import traceback
+from collections import deque, namedtuple, UserDict
+from concurrent import futures
+from datetime import datetime, timezone
+from functools import lru_cache
+from http.client import HTTPConnection
+from sys import argv
+from urllib.error import HTTPError, URLError
+from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector, HTTPRedirectHandler, \
+    Request, HTTPDefaultErrorHandler, HTTPErrorProcessor
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
@@ -63,6 +66,22 @@ performance_data = []
 
 ImageName = namedtuple('ImageName', "registry name tag full_name")
 
+class ThresholdSpec(UserDict):
+    def __init__(self,warn, crit, units=''):
+        super().__init__(warn=warn,crit=crit,units=units)
+
+    def __getattr__(self, item):
+        return self[item]
+
+# How much threading can we do? We are generally not CPU bound so I am using this a worse case cap
+DEFAULT_PARALLELISM = 10
+
+# Holds list of all threads
+threads = []
+
+# This is used during testing
+DISABLE_THREADING = False
+
 
 # Hacked up urllib to handle sockets
 #############################################################################################
@@ -71,7 +90,6 @@ ImageName = namedtuple('ImageName', "registry name tag full_name")
 # cannot fix the fact http.client can't read from socket files. In order to take advantage of
 # urllib and http.client's  capabilities the class below tweaks HttpConnection and passes it
 # to urllib registering for socket:// connections
-
 
 class SocketFileHandler(AbstractHTTPHandler):
     class SocketFileToHttpConnectionAdaptor(HTTPConnection):
@@ -134,6 +152,11 @@ better_urllib_head.add_handler(HTTPErrorProcessor())
 better_urllib_head.add_handler(SocketFileHandler())
 
 
+class RegistryError(Exception):
+    def __init__(self, response):
+        self.response_obj = response
+
+
 # Util functions
 #############################################################################################
 def parse_thresholds(spec, include_units=True, units_required=True):
@@ -145,81 +168,107 @@ def parse_thresholds(spec, include_units=True, units_required=True):
     :param units_required: Mark spec as invalid if the units are missing.
     :return: A list containing the thresholds in order of warn, crit, and units(if included and present)
     """
-    returned = []
     parts = deque(spec.split(':'))
     if not all(parts):
         raise ValueError("Blanks are not allowed in a threshold specification: {}".format(spec))
+
     # Warn
-    returned.append(int(parts.popleft()))
+    warn = int(parts.popleft())
     # Crit
-    returned.append(int(parts.popleft()))
+    crit = int(parts.popleft())
+
+    units = ''
     if include_units:
         if len(parts):
             # units
-            returned.append(parts.popleft())
+            units = parts.popleft()
         elif units_required:
             raise ValueError("Missing units in {}".format(spec))
-        else:
-            # units
-            returned.append(None)
 
     if len(parts) != 0:
         raise ValueError("Too many threshold specifiers in {}".format(spec))
 
-    return returned
+    return ThresholdSpec(warn=warn, crit=crit, units=units)
 
 
-def evaluate_numeric_thresholds(container, value, warn, crit, name, short_name, min=None, max=None, units='',
-                                greater_than=True):
+def evaluate_numeric_thresholds(container, value, thresholds, name, short_name,
+                                min=None, max=None, greater_than=True):
+
+    rounder = lambda x: round(x, 2)
+
+    INTEGER_UNITS = ['B', '%', '']
 
     # Some units don't have decimal places
-    rounded_value = int(value) if units in ['B','%', None] else round(value, 2)
+    rounded_value = int(value) if thresholds.units in INTEGER_UNITS else rounder(value)
 
-    perf_string = "{}_{}={}{};{};{}".format(container, short_name, rounded_value, units, warn, crit)
+    perf_string = "{container}_{short_name}={value}{units};{warn};{crit}".format(
+        container=container,
+        short_name=short_name,
+        value=rounded_value,
+        **thresholds)
     if min is not None:
-        perf_string += ';{}'.format(min)
+        rounded_min = math.floor(min) if thresholds.units in INTEGER_UNITS else rounder(min)
+        perf_string += ';{}'.format(rounded_min)
         if max is not None:
-            perf_string += ';{}'.format(max)
+            rounded_max = math.ceil(max) if thresholds.units in INTEGER_UNITS else rounder(max)
+            perf_string += ';{}'.format(rounded_max)
+
     global performance_data
     performance_data.append(perf_string)
 
+    results_str = "{} {} is {}{}".format(container, name, rounded_value, thresholds.units)
+
     if greater_than:
-        if value >= crit:
-            critical("{} {} is {}{}".format(container, name, rounded_value, units))
-        elif value >= warn:
-            warning("{} {} is {}{}".format(container, name, rounded_value, units))
-        else:
-            ok("{} {} is {}{}".format(container, name, rounded_value, units))
+        comparator = lambda value,threshold:  value >= threshold
     else:
-        if value <= crit:
-            critical("{} {} is {}{}".format(container, name, rounded_value, units))
-        elif value <= warn:
-            warning("{} {} is {}{}".format(container, name, rounded_value, units))
-        else:
-            ok("{} {} is {}{}".format(container, name, rounded_value, units))
+        comparator = lambda value,threshold:  value <= threshold
+
+    if comparator(value ,thresholds.crit):
+            critical(results_str)
+    elif comparator(value ,thresholds.warn):
+            warning(results_str)
+    else:
+            ok(results_str)
 
 
-@lru_cache()
+@lru_cache(maxsize=None)
 def get_url(url):
+    logger.debug("get_url: {}".format(url))
     response = better_urllib_get.open(url, timeout=timeout)
+    logger.debug("get_url: {} {}".format(url, response.status))
     return process_urllib_response(response), response.status
 
 
-@lru_cache()
+@lru_cache(maxsize=None)
 def head_url(url, auth_token=None):
-    if auth_token:
-        better_urllib_head.addheaders.append(('Authorization', 'Bearer ' + auth_token))
-    # Follow redirects
-    response = better_urllib_head.open(url, timeout=timeout)
-    if auth_token:
-        better_urllib_head.addheaders.pop()
+    logger.debug("head_url: {} {}".format(url, auth_token))
+
+    # Turns out exceptions are not cached so I covert it back to regular response
+    try:
+        if auth_token:
+            better_urllib_head.addheaders.append(('Authorization', 'Bearer ' + auth_token))
+
+        # Follow redirects
+        response = better_urllib_head.open(url, timeout=timeout)
+
+    # Convert unauthorized response to regular response
+    except HTTPError as e:
+        if e.code == 401:
+            response = e.fp
+        else:
+            raise e
+    finally:
+        if auth_token:
+            better_urllib_head.addheaders.pop()
+
+    logger.debug("{} {} {}".format(url, auth_token, response.status))
     return response
 
 
 def process_urllib_response(response):
     response_bytes = response.read()
     body = response_bytes.decode('utf-8')
-    logger.debug(body)
+    # logger.debug("BODY: {}".format(body))
     return json.loads(body)
 
 
@@ -233,13 +282,28 @@ def get_image_info(name):
     return content
 
 
-@lru_cache()
 def get_manifest_auth_token(www_authenticate_header):
-    # TODO: Pass the error on to be handled better
-    assert 'Bearer realm=' in www_authenticate_header, "Auth header is not one I can process"
-    header_list = www_authenticate_header.replace('Bearer realm=', '').replace('"', '').split(',')
-    auth_url = header_list[0] + '?' + '&'.join(header_list[1:])
+    logger.debug("www_authenticate_header: {}".format(www_authenticate_header))
+
+    # This is the doc on how to do the properly but rather than spend a week doing it by the book
+    # I'm using a quick and dirty method and seeing if it works.
+    #   https://tools.ietf.org/html/rfc6750#section-3
+    #   https://tools.ietf.org/html/rfc7230#section-3.2
+    #
+    # Here is where I found the hack
+    # https://stackoverflow.com/questions/1349367/parse-an-http-request-authorization-header-with-python
+    auth_fields = dict(re.findall(r"""(?:(?P<key>[^ ,=]+)="([^"]+)")""", www_authenticate_header))
+
+    auth_url = "{realm}?scope={scope}&service={service}".format(
+        realm=auth_fields['realm'],
+        scope=auth_fields['scope'],
+        service=auth_fields['service'],
+    )
+
+    realm = auth_fields['realm']
+
     response, _ = get_url(auth_url)
+
     return response['token']
 
 
@@ -252,9 +316,20 @@ def get_stats(container):
     return content
 
 
+def get_ps_name(name_list):
+    # Pick the name that starts with a '/' but doesn't contain a '/' and return that value
+    for name in name_list:
+        if '/' not in name[1:] and name[0] == '/':
+            return name[1:]
+    else:
+        raise NameError("Error when trying to identify 'ps' name in {}".format(name_list))
+
+
 def get_containers(names, require_present):
     containers_list, _ = get_url(daemon + '/containers/json?all=1')
-    all_container_names = set(x['Names'][0][1:] for x in containers_list)
+
+    all_container_names = set(get_ps_name(x['Names']) for x in containers_list)
+
     if 'all' in names:
         return all_container_names
 
@@ -304,29 +379,27 @@ def normalize_image_name_to_manifest_url(image_name, insecure_registries):
     return url, parsed_url.registry
 
 
+# Auth servers seem picky about being hit too hard. Can't figure out why. ;)
+# As result it is best to single thread this check
+# This is based on https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
 def get_digest_from_registry(url):
+    logger.debug("get_digest_from_registry")
     # query registry
-    try:
-        registry_info = head_url(url=url)
-    except HTTPError as e:
-        if e.code == 401:  # Convert unauthorized response to regular response
-            registry_info = e.fp
-        else:
-            raise e
-
+    registry_info = head_url(url=url)
     if registry_info.status == 401:  # HTTP unauthorized
-
+        logger.debug("get_digest_from_registry: {}".format(url))
         # Find auth server
         # TODO: Handle logging in if needed
         www_authenticate_header = registry_info.headers.get('Www-Authenticate')
         # Get auth token
         token = get_manifest_auth_token(www_authenticate_header)
-
         # query registry again
         registry_info = head_url(url=url, auth_token=token)
 
-    registry_hash = registry_info.getheader('Docker-Content-Digest', None)
-    return registry_hash
+    digest = registry_info.getheader('Docker-Content-Digest', None)
+    if digest is None:
+        raise RegistryError(response=registry_info)
+    return digest
 
 
 def set_rc(new_rc):
@@ -364,6 +437,32 @@ def require_running(name):
                 # container is not running, can't perform check
                 critical('{container} is not "running", cannot check {check}"'.format(container=container,
                                                                                       check=name))
+
+        return wrapper
+
+    return inner_decorator
+
+
+def multithread_execution(disable_threading=DISABLE_THREADING):
+    def inner_decorator(func):
+        def wrapper(container, *args, **kwargs):
+            if DISABLE_THREADING:
+                func(container, *args, **kwargs)
+            else:
+                threads.append(parallel_executor.submit(func, container, *args, **kwargs))
+
+        return wrapper
+
+    return inner_decorator
+
+
+def singlethread_execution(disable_threading=DISABLE_THREADING):
+    def inner_decorator(func):
+        def wrapper(container, *args, **kwargs):
+            if DISABLE_THREADING:
+                func(container, *args, **kwargs)
+            else:
+                threads.append(serial_executor.submit(func, container, *args, **kwargs))
 
         return wrapper
 
@@ -413,9 +512,10 @@ def parse_image_name(image_name):
 # Checks
 #############################################################################################
 
+@multithread_execution()
 @require_running(name='memory')
-def check_memory(container, warn, crit, units):
-    if not units in unit_adjustments:
+def check_memory(container, thresholds):
+    if not thresholds.units in unit_adjustments:
         unknown("Memory units must be one of  {}".format(list(unit_adjustments.keys())))
         return
 
@@ -423,17 +523,18 @@ def check_memory(container, warn, crit, units):
 
     # Subtracting cache to match `docker stats` does.
     adjusted_usage = inspection['memory_stats']['usage'] - inspection['memory_stats']['stats']['total_cache']
-    if units == '%':
+    if thresholds.units == '%':
         max = 100
         usage = int(100 * adjusted_usage / inspection['memory_stats']['limit'])
     else:
-        max = inspection['memory_stats']['limit'] / unit_adjustments[units]
-        usage = adjusted_usage / unit_adjustments[units]
+        max = inspection['memory_stats']['limit'] / unit_adjustments[thresholds.units]
+        usage = adjusted_usage / unit_adjustments[thresholds.units]
 
-    evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units=units, name='memory',
+    evaluate_numeric_thresholds(container=container, value=usage, thresholds=thresholds, name='memory',
                                 short_name='mem', min=0, max=max)
 
 
+@multithread_execution()
 def check_status(container, desired_state):
     normized_desired_state = desired_state.lower()
     state = get_state(container)
@@ -453,8 +554,10 @@ def check_status(container, desired_state):
     ok("{} status is {}".format(container, desired_state))
 
 
+@multithread_execution()
 @require_running('health')
 def check_health(container):
+
     state = get_state(container)
     if "Health" in state and "Status" in state["Health"]:
         health = state["Health"]["Status"]
@@ -469,8 +572,9 @@ def check_health(container):
         unknown('{} has no health check data'.format(container))
 
 
+@multithread_execution()
 @require_running('uptime')
-def check_uptime(container, warn, crit, units=None):
+def check_uptime(container, thresholds):
     inspection = get_container_info(container)['State']['StartedAt']
     only_secs = inspection[0:19]
     start = datetime.strptime(only_secs, "%Y-%m-%dT%H:%M:%S")
@@ -479,20 +583,23 @@ def check_uptime(container, warn, crit, units=None):
     uptime = (now - start).total_seconds()
 
     graph_padding = 2
-    evaluate_numeric_thresholds(container=container, value=uptime, units='s', warn=warn, crit=crit, name='uptime',
+    thresholds.units = 's'
+    evaluate_numeric_thresholds(container=container, value=uptime, thresholds=thresholds, name='uptime',
                                 short_name='up', min=0, max=graph_padding, greater_than=False)
 
 
+@multithread_execution()
 @require_running('restarts')
-def check_restarts(container, warn, crit, units=None):
+def check_restarts(container, thresholds):
     inspection = get_container_info(container)
 
     restarts = int(inspection['RestartCount'])
     graph_padding = 2
-    evaluate_numeric_thresholds(container=container, value=restarts, warn=warn, crit=crit, name='restarts',
+    evaluate_numeric_thresholds(container=container, value=restarts, thresholds=thresholds, name='restarts',
                                 short_name='re', min=0, max=graph_padding)
 
 
+@singlethread_execution()
 def check_version(container, insecure_registries):
     image_digest = get_container_digest(container)
     if image_digest is None:
@@ -512,16 +619,21 @@ def check_version(container, insecure_registries):
     try:
         registry_hash = get_digest_from_registry(url)
     except URLError as e:
-        if e.reason.reason == 'UNKNOWN_PROTOCOL':
+        if hasattr(e.reason, 'reason') and e.reason.reason == 'UNKNOWN_PROTOCOL':
             unknown(
                 "TLS error connecting to registry {} for {}, should you use the '--insecure-registry' flag?" \
                     .format(registry, container))
             return
-
-    if registry_hash is None:
-        unknown("Cannot check version, Registry didn't return 'Docker-Content-Digest header for {} while checking {}." \
-                .format(container, url))
+        elif hasattr(e.reason, 'strerror') and e.reason.strerror == 'nodename nor servname provided, or not known':
+            unknown(
+                "Cannot reach registry for {} at {}".format(container, url))
+            return
+        else:
+            raise e
+    except RegistryError as e:
+        unknown("Cannot check version, couldn't retrieve digest for {} while checking {}.".format(container, url))
         return
+
     if registry_hash == image_digest:
         ok("{}'s version matches registry".format(container))
         return
@@ -563,8 +675,9 @@ def calculate_cpu_capacity_precentage(info, stats):
     return usage
 
 
+@multithread_execution()
 @require_running('cpu')
-def check_cpu(container, warn, crit, _=''):
+def check_cpu(container, thresholds):
     info = get_container_info(container)
 
     stats = get_stats(container=container)
@@ -572,8 +685,9 @@ def check_cpu(container, warn, crit, _=''):
     usage = calculate_cpu_capacity_precentage(info=info, stats=stats)
 
     max = 100
-    evaluate_numeric_thresholds(container=container, value=usage, warn=warn, crit=crit, units='%', name='cpu',
-                                short_name='cpu', min=0, max=max)
+    thresholds.units = '%'
+    evaluate_numeric_thresholds(container=container, value=usage, thresholds=thresholds, name='cpu', short_name='cpu',
+                                min=0, max=max)
 
 
 def process_args(args):
@@ -634,6 +748,14 @@ def process_args(args):
                         action='store_true',
                         help='Modifies --containers so that each RegEx must match at least one container.')
 
+    # Threads
+    parser.add_argument('--threads',
+                        dest='threads',
+                        default=DEFAULT_PARALLELISM,
+                        action='store',
+                        type=int,
+                        help='This + 1 is the maximum number of concurent threads/network connections. (default: %(default)s)')
+
     # CPU
     parser.add_argument('--cpu',
                         dest='cpu',
@@ -655,7 +777,7 @@ def process_args(args):
                         dest='status',
                         action='store',
                         type=str,
-                        help='Desired container status (running, exited, etc). (default: %(default)s)')
+                        help='Desired container status (running, exited, etc).')
 
     # Health
     parser.add_argument('--health',
@@ -748,61 +870,76 @@ def print_results():
 def perform_checks(raw_args):
     args = process_args(raw_args)
 
+    global parallel_executor
+    parallel_executor = futures.ThreadPoolExecutor(max_workers=args.threads)
+    global serial_executor
+    serial_executor = futures.ThreadPoolExecutor(max_workers=1)
+
     global unit_adjustments
     unit_adjustments = {key: args.units_base ** value for key, value in UNIT_ADJUSTMENTS_TEMPLATE.items()}
 
     if socketfile_permissions_failure(args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
-    elif no_checks_present(args):
+        return
+
+    if no_checks_present(args):
         unknown("No checks specified.")
-    else:
-        # Here is where all the work happens
-        #############################################################################################
-        try:
-            containers = get_containers(args.containers, args.present)
+        return
 
-            if len(containers) == 0:
-                unknown("No containers names found matching criteria")
-            else:
-                for container in containers:
+    # Here is where all the work happens
+    #############################################################################################
+    containers = get_containers(args.containers, args.present)
 
-                    # Check status
-                    if args.status:
-                        check_status(container, args.status)
+    if len(containers) == 0:
+        unknown("No containers names found matching criteria")
+        return
 
-                    # Check version
-                    if args.version:
-                        check_version(container, args.insecure_registries)
+    for container in containers:
 
-                    # below are checks that require a 'running' status
+        # Check status
+        if args.status:
+            check_status(container, args.status)
 
-                    # Check status
-                    if args.health:
-                        check_health(container)
+        # Check version
+        if args.version:
+            check_version(container, args.insecure_registries)
 
-                    # Check cpu usage
-                    if args.cpu:
-                        check_cpu(container, *parse_thresholds(args.cpu, units_required=False))
+        # below are checks that require a 'running' status
 
-                    # Check memory usage
-                    if args.memory:
-                        check_memory(container, *parse_thresholds(args.memory, units_required=False))
+        # Check status
+        if args.health:
+            check_health(container)
 
-                    # Check uptime
-                    if args.uptime:
-                        check_uptime(container, *parse_thresholds(args.uptime, include_units=False))
+        # Check cpu usage
+        if args.cpu:
+            check_cpu(container, parse_thresholds(args.cpu, units_required=False))
 
-                    # Check restart count
-                    if args.restarts:
-                        check_restarts(container, *parse_thresholds(args.restarts, include_units=False))
+        # Check memory usage
+        if args.memory:
+            check_memory(container, parse_thresholds(args.memory, units_required=False))
 
-        except Exception as e:
-            traceback.print_exc()
-            unknown("Exception raised during check': {}".format(repr(e)))
+        # Check uptime
+        if args.uptime:
+            check_uptime(container, parse_thresholds(args.uptime, include_units=False))
 
+        # Check restart count
+        if args.restarts:
+            check_restarts(container, parse_thresholds(args.restarts, include_units=False))
+
+
+def main():
+    try:
+        perform_checks(argv[1:])
+
+        # get results to let exceptions in threads bubble out
+        [x.result() for x in futures.as_completed(threads)]
+
+    except Exception as e:
+        traceback.print_exc()
+        unknown("Exception raised during check': {}".format(repr(e)))
     print_results()
+    exit(rc)
 
 
 if __name__ == '__main__':
-    perform_checks(argv[1:])
-    exit(rc)
+    main()

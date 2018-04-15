@@ -1,5 +1,4 @@
 include license.txt
-include README.txt
-include check_docker
-include check_swarm
+include README.md
+recursive-include check_docker *.py
 include setup.py

@@ -1,9 +1,6 @@
 from distutils.core import setup
 import sys
-from importlib.machinery import SourceFileLoader
-
-check_docker = SourceFileLoader('check_docker', './check_docker').load_module()
-
+from check_docker import check_docker
 
 if sys.version_info < (3, ):
     raise SystemExit('check_docker requires Python 3.3 or higher.')
@@ -16,7 +13,13 @@ setup(
     author_email="timdaman@gmail.com",
     url="https://github.com/timdaman/check_docker",
     keywords=["nrpe", "nagios", "docker", "monitoring"],
-    scripts=["check_docker", "check_swarm"],
+    packages=['check_docker'],
+    entry_points={
+        'console_scripts': [
+            'check_docker = check_docker.check_docker:main',
+            'check_swarm = check_docker.check_swarm:main',
+        ],
+    },
     download_url="https://github.com/timdaman/check_docker/archive/master.zip",
     python_requires=">=3.0",
     classifiers=[
@@ -28,5 +31,6 @@ setup(
         "Operating System :: OS Independent",
         "Topic :: System :: Networking",
         ],
-    long_description=open('README.txt').read(),
+    long_description_content_type='text/markdown',
+    long_description=open('README.md').read(),
 )

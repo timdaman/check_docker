@@ -291,7 +291,9 @@ def perform_checks(raw_args):
 
     print_results()
 
-
-if __name__ == '__main__':
+def main():
     perform_checks(argv[1:])
     exit(rc)
+
+if __name__ == '__main__':
+    main()

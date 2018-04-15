@@ -111,3 +111,10 @@ crashlytics-build.properties
 fabric.properties
 
 /coverage
+/.pytest_cache/
+.pytest_cache/
+config.yml
+cr-sess1.json
+
+
+!check_docker/
