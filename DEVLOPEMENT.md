@@ -13,7 +13,7 @@ You should have the following installed
 Pytest is used for testing. You can can run test by running the following from
 the root of the project
 
-    py.testpy
+    py.test
 
 ## Isolated tests
 Sometimes test cases can interact with Docker on the development machine making
@@ -29,7 +29,7 @@ changes are not python version specific.
 The aim is to keep coverage above 90% on the actually checks
 (check_docker.py and check_swarm.py). To generate a coverage report.
 
-    coverage run `which py.test`
+    py.test --cov=check_docker/
 
 # Tips
 When jumping back and forth between normal and isolated tests the `__pycache__`
