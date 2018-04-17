@@ -1,8 +1,9 @@
-from distutils.core import setup
 import sys
+from distutils.core import setup
+
 from check_docker import check_docker
 
-if sys.version_info < (3, ):
+if sys.version_info < (3,):
     raise SystemExit('check_docker requires Python 3.3 or higher.')
 
 setup(
@@ -30,6 +31,6 @@ setup(
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Operating System :: OS Independent",
         "Topic :: System :: Networking",
-        ],
+    ],
     long_description=open('README.rst').read(),
 )

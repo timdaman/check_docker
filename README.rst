@@ -1,4 +1,4 @@
-|Build Status| |Code Climate| |Test Coverage|
+|Build Status| |Code Climate| |Test Coverage| |Downloads|
 
 
 ============
@@ -153,9 +153,9 @@ Gotchas
 
 .. |Build Status| image:: https://travis-ci.org/timdaman/check_docker.svg?branch=master
    :target: https://travis-ci.org/timdaman/check_docker
-.. |Build Status2| image:: https://travis-ci.org/timdaman/check_docker.svg?branch=master
-   :target: https://travis-ci.org/timdaman/check_docker
 .. |Code Climate| image:: https://codeclimate.com/github/timdaman/check_docker/badges/gpa.svg
    :target: https://codeclimate.com/github/timdaman/check_docker
 .. |Test Coverage| image:: https://codeclimate.com/github/timdaman/check_docker/badges/coverage.svg
    :target: https://codeclimate.com/github/timdaman/check_docker/coverage
+.. |Downloads| image:: http://pepy.tech/badge/check-docker
+   :target: http://pepy.tech/count/check-docker
