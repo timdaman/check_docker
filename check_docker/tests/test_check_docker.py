@@ -1,5 +1,4 @@
 import json
-import os
 import stat
 from datetime import datetime, timezone, timedelta
 
@@ -9,7 +8,6 @@ except ImportError:
     from imp import reload
 from io import BytesIO
 from unittest.mock import patch
-from urllib import request
 from urllib.error import HTTPError, URLError
 
 import pytest
@@ -659,29 +657,6 @@ def test_print_results(check_docker, capsys, messages, perf_data, expected):
     check_docker.print_results()
     out, err = capsys.readouterr()
     assert out.strip() == expected
-
-
-@pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
-                    reason="Can not reach Python packge index when isolated")
-def test_package_present():
-    req = request.Request("https://pypi.python.org/pypi?:action=doap&name=check_docker", method="HEAD")
-    with request.urlopen(req) as resp:
-        assert resp.getcode() == 200
-
-
-@pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
-                    reason="Can not reach Python packge index when isolated")
-def test_ensure_new_version():
-    version = cd.__version__
-    req = request.Request("https://pypi.python.org/pypi?:action=doap&name=check_docker&version={version}".
-                          format(version=version), method="HEAD")
-
-    try:
-        with request.urlopen(req) as resp:
-            http_code = resp.getcode()
-    except HTTPError as e:
-        http_code = e.code
-    assert http_code == 404, "Version already exists"
 
 
 @pytest.mark.parametrize('url, expected', (

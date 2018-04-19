@@ -1,16 +1,15 @@
 import argparse
 import json
-from io import BytesIO
 import stat
+from io import BytesIO
 from unittest.mock import patch
-from urllib.error import HTTPError
 
-import os
 import pytest
+
 from check_docker import check_swarm as cs
-from urllib import request
 
 __author__ = 'tim'
+
 
 @pytest.fixture
 def check_swarm():
@@ -270,7 +269,7 @@ def test_check_service_results_FAIL_unknown(check_swarm, fs):
             assert check_swarm.rc == cs.UNKNOWN_RC
 
 
-def test_check_no_services(check_swarm,fs ):
+def test_check_no_services(check_swarm, fs):
     fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing2']
     with patch('check_docker.check_swarm.get_url', return_value=([], 200)):
@@ -305,25 +304,3 @@ def test_print_results(check_swarm, capsys, messages, perf_data, expected):
     check_swarm.print_results()
     out, err = capsys.readouterr()
     assert out.strip() == expected
-
-
-@pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
-                    reason="Can not reach Python packge index when isolated")
-def test_package_present():
-    req = request.Request("https://pypi.python.org/pypi?:action=doap&name=check_docker", method="HEAD")
-    with request.urlopen(req) as resp:
-        assert resp.getcode() == 200
-
-@pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
-                    reason="Can not reach Python packge index when isolated")
-def test_ensure_new_version():
-    version = cs.__version__
-    req = request.Request("https://pypi.python.org/pypi?:action=doap&name=check_docker&version={version}".
-                          format(version=version), method="HEAD")
-
-    try:
-        with request.urlopen(req) as resp:
-            http_code = resp.getcode()
-    except HTTPError as e:
-        http_code = e.code
-        assert http_code == 404, "Version already exists"
