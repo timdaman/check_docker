@@ -117,4 +117,5 @@ config.yml
 cr-sess1.json
 
 
+testing_tools/vagrant/.vagrant
 !check_docker/

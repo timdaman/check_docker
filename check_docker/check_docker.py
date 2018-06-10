@@ -9,15 +9,16 @@ import re
 import socket
 import stat
 import traceback
-from collections import deque, namedtuple, UserDict
+from collections import deque, namedtuple, UserDict, defaultdict
 from concurrent import futures
 from datetime import datetime, timezone
 from functools import lru_cache
 from http.client import HTTPConnection
 from sys import argv
+from urllib import request
 from urllib.error import HTTPError, URLError
 from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector, HTTPRedirectHandler, \
-    Request, HTTPDefaultErrorHandler, HTTPErrorProcessor
+    Request, HTTPBasicAuthHandler
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
@@ -41,7 +42,6 @@ DEFAULT_PORT = 2375
 DEFAULT_MEMORY_UNITS = 'B'
 DEFAULT_HEADERS = [('Accept', 'application/vnd.docker.distribution.manifest.v2+json')]
 DEFAULT_PUBLIC_REGISTRY = 'registry-1.docker.io'
-DEFAULT_PUBLIC_AUTH = 'https://auth.docker.io'
 
 # The second value is the power to raise the base to.
 UNIT_ADJUSTMENTS_TEMPLATE = {
@@ -66,12 +66,14 @@ performance_data = []
 
 ImageName = namedtuple('ImageName', "registry name tag full_name")
 
+
 class ThresholdSpec(UserDict):
-    def __init__(self,warn, crit, units=''):
-        super().__init__(warn=warn,crit=crit,units=units)
+    def __init__(self, warn, crit, units=''):
+        super().__init__(warn=warn, crit=crit, units=units)
 
     def __getattr__(self, item):
         return self[item]
+
 
 # How much threading can we do? We are generally not CPU bound so I am using this a worse case cap
 DEFAULT_PARALLELISM = 10
@@ -109,29 +111,56 @@ class SocketFileHandler(AbstractHTTPHandler):
         return self.do_open(self.SocketFileToHttpConnectionAdaptor, req)
 
 
+# Tokens are not cached because I expect the callers to cache the responses
+class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
+    auth_failure_tracker = defaultdict(int)
+
+    def http_response(self, request, response):
+        code, hdrs = response.code, response.headers
+
+        www_authenticate_header = response.headers.get('www-authenticate', None)
+        if code == 401 and www_authenticate_header:
+            scheme = www_authenticate_header.split()[0]
+            if scheme.lower() == 'bearer':
+                return self.process_oauth2(request, response, www_authenticate_header)
+
+        return response
+
+    https_response = http_response
+
+    @staticmethod
+    def _get_outh2_token(www_authenticate_header):
+        auth_fields = dict(re.findall(r"""(?:(?P<key>[^ ,=]+)="([^"]+)")""", www_authenticate_header))
+
+        auth_url = "{realm}?scope={scope}&service={service}".format(
+            realm=auth_fields['realm'],
+            scope=auth_fields['scope'],
+            service=auth_fields['service'],
+        )
+        token_request = Request(auth_url)
+        token_request.add_header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+        token_response = request.urlopen(token_request)
+        return process_urllib_response(token_response)['token']
+
+    def process_oauth2(self, request, response, www_authenticate_header):
+
+        # This keep infinite auth loops from happening
+        full_url = request.full_url
+        self.auth_failure_tracker[full_url] += 1
+        if self.auth_failure_tracker[full_url] > 1:
+            raise HTTPError(full_url, 401, "Stopping Oauth2 failure loop for {}".format(full_url),
+                            response.headers, response)
+
+        auth_token = self._get_outh2_token(www_authenticate_header)
+
+        request.add_unredirected_header('Authorization', 'Bearer ' + auth_token)
+        return self.parent.open(request, timeout=request.timeout)
+
+
 # Got some help from this example https://gist.github.com/FiloSottile/2077115
 class HeadRequest(Request):
     def get_method(self):
         return "HEAD"
-
-
-class HEADRedirectHandler(HTTPRedirectHandler):
-    """
-    Subclass the HTTPRedirectHandler to make it use our
-    HeadRequest also on the redirected URL
-    """
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if code in (301, 302, 303, 307):
-            newurl = newurl.replace(' ', '%20')
-            newheaders = dict((k, v) for k, v in req.headers.items()
-                              if k.lower() not in ("content-length", "content-type"))
-            return HeadRequest(newurl,
-                               headers=newheaders,
-                               origin_req_host=req.get_origin_req_host(),
-                               unverifiable=True)
-        else:
-            raise HTTPError(req.get_full_url(), code, msg, headers, fp)
 
 
 better_urllib_get = OpenerDirector()
@@ -140,16 +169,7 @@ better_urllib_get.add_handler(HTTPHandler())
 better_urllib_get.add_handler(HTTPSHandler())
 better_urllib_get.add_handler(HTTPRedirectHandler())
 better_urllib_get.add_handler(SocketFileHandler())
-
-better_urllib_head = OpenerDirector()
-better_urllib_head.method = 'HEAD'
-better_urllib_head.addheaders = DEFAULT_HEADERS.copy()
-better_urllib_head.add_handler(HTTPHandler())
-better_urllib_head.add_handler(HTTPSHandler())
-better_urllib_head.add_handler(HTTPDefaultErrorHandler())
-better_urllib_head.add_handler(HTTPRedirectHandler())
-better_urllib_head.add_handler(HTTPErrorProcessor())
-better_urllib_head.add_handler(SocketFileHandler())
+better_urllib_get.add_handler(Oauth2TokenAuthHandler())
 
 
 class RegistryError(Exception):
@@ -193,7 +213,6 @@ def parse_thresholds(spec, include_units=True, units_required=True):
 
 def evaluate_numeric_thresholds(container, value, thresholds, name, short_name,
                                 min=None, max=None, greater_than=True):
-
     rounder = lambda x: round(x, 2)
 
     INTEGER_UNITS = ['B', '%', '']
@@ -219,16 +238,16 @@ def evaluate_numeric_thresholds(container, value, thresholds, name, short_name,
     results_str = "{} {} is {}{}".format(container, name, rounded_value, thresholds.units)
 
     if greater_than:
-        comparator = lambda value,threshold:  value >= threshold
+        comparator = lambda value, threshold: value >= threshold
     else:
-        comparator = lambda value,threshold:  value <= threshold
+        comparator = lambda value, threshold: value <= threshold
 
-    if comparator(value ,thresholds.crit):
-            critical(results_str)
-    elif comparator(value ,thresholds.warn):
-            warning(results_str)
+    if comparator(value, thresholds.crit):
+        critical(results_str)
+    elif comparator(value, thresholds.warn):
+        warning(results_str)
     else:
-            ok(results_str)
+        ok(results_str)
 
 
 @lru_cache(maxsize=None)
@@ -240,28 +259,10 @@ def get_url(url):
 
 
 @lru_cache(maxsize=None)
-def head_url(url, auth_token=None):
-    logger.debug("head_url: {} {}".format(url, auth_token))
-
-    # Turns out exceptions are not cached so I covert it back to regular response
-    try:
-        if auth_token:
-            better_urllib_head.addheaders.append(('Authorization', 'Bearer ' + auth_token))
-
-        # Follow redirects
-        response = better_urllib_head.open(url, timeout=timeout)
-
-    # Convert unauthorized response to regular response
-    except HTTPError as e:
-        if e.code == 401:
-            response = e.fp
-        else:
-            raise e
-    finally:
-        if auth_token:
-            better_urllib_head.addheaders.pop()
-
-    logger.debug("{} {} {}".format(url, auth_token, response.status))
+def head_url(url):
+    # Follow redirects
+    response = better_urllib_get.open(HeadRequest(url), timeout=timeout)
+    logger.debug("{} {}".format(url, response.status))
     return response
 
 
@@ -280,31 +281,6 @@ def get_container_info(name):
 def get_image_info(name):
     content, _ = get_url(daemon + '/images/{image}/json'.format(image=name))
     return content
-
-
-def get_manifest_auth_token(www_authenticate_header):
-    logger.debug("www_authenticate_header: {}".format(www_authenticate_header))
-
-    # This is the doc on how to do the properly but rather than spend a week doing it by the book
-    # I'm using a quick and dirty method and seeing if it works.
-    #   https://tools.ietf.org/html/rfc6750#section-3
-    #   https://tools.ietf.org/html/rfc7230#section-3.2
-    #
-    # Here is where I found the hack
-    # https://stackoverflow.com/questions/1349367/parse-an-http-request-authorization-header-with-python
-    auth_fields = dict(re.findall(r"""(?:(?P<key>[^ ,=]+)="([^"]+)")""", www_authenticate_header))
-
-    auth_url = "{realm}?scope={scope}&service={service}".format(
-        realm=auth_fields['realm'],
-        scope=auth_fields['scope'],
-        service=auth_fields['service'],
-    )
-
-    realm = auth_fields['realm']
-
-    response, _ = get_url(auth_url)
-
-    return response['token']
 
 
 def get_state(container):
@@ -385,16 +361,8 @@ def normalize_image_name_to_manifest_url(image_name, insecure_registries):
 def get_digest_from_registry(url):
     logger.debug("get_digest_from_registry")
     # query registry
+    # TODO: Handle logging in if needed
     registry_info = head_url(url=url)
-    if registry_info.status == 401:  # HTTP unauthorized
-        logger.debug("get_digest_from_registry: {}".format(url))
-        # Find auth server
-        # TODO: Handle logging in if needed
-        www_authenticate_header = registry_info.headers.get('Www-Authenticate')
-        # Get auth token
-        token = get_manifest_auth_token(www_authenticate_header)
-        # query registry again
-        registry_info = head_url(url=url, auth_token=token)
 
     digest = registry_info.getheader('Docker-Content-Digest', None)
     if digest is None:
@@ -557,7 +525,6 @@ def check_status(container, desired_state):
 @multithread_execution()
 @require_running('health')
 def check_health(container):
-
     state = get_state(container)
     if "Health" in state and "Status" in state["Health"]:
         health = state["Health"]["Status"]

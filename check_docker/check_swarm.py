@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-import os
-import stat
-import logging
-from sys import argv
-from http.client import HTTPConnection
-from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
 import argparse
 import json
-import socket
-from functools import lru_cache
+import logging
+import os
 import re
+import socket
+import stat
+from functools import lru_cache
+from http.client import HTTPConnection
+from sys import argv
+from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
@@ -75,13 +75,6 @@ better_urllib_get.addheaders = DEFAULT_HEADERS.copy()
 better_urllib_get.add_handler(HTTPHandler())
 better_urllib_get.add_handler(HTTPSHandler())
 better_urllib_get.add_handler(SocketFileHandler())
-
-better_urllib_head = OpenerDirector()
-better_urllib_head.method = 'HEAD'
-better_urllib_head.addheaders = DEFAULT_HEADERS.copy()
-better_urllib_head.add_handler(HTTPHandler())
-better_urllib_head.add_handler(HTTPSHandler())
-better_urllib_head.add_handler(SocketFileHandler())
 
 
 # Util functions
@@ -291,9 +284,11 @@ def perform_checks(raw_args):
 
     print_results()
 
+
 def main():
     perform_checks(argv[1:])
     exit(rc)
+
 
 if __name__ == '__main__':
     main()

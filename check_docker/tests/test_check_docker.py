@@ -1,5 +1,6 @@
 import json
 import stat
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 
 try:
@@ -20,6 +21,7 @@ __author__ = 'Tim Laurence'
 class FakeHttpResponse(BytesIO):
     def __init__(self, content=b'', http_code=200, headers=None, method='GET'):
         self.status = http_code
+        self.code = http_code
         self.headers = headers if headers else {}
         self.method = method
         super(FakeHttpResponse, self).__init__(content)
@@ -48,6 +50,7 @@ def check_docker():
     cd.get_url.cache_clear()
     cd.head_url.cache_clear()
     cd.DISABLE_THREADING = True
+    cd.Oauth2TokenAuthHandler.auth_failure_tracker = defaultdict(int)
 
     def fake_exit(_=None):
         pass
@@ -82,38 +85,46 @@ def test_head_url(check_docker):
     def mock_open(*args, **kwargs):
         return mock_response
 
-    with patch('check_docker.check_docker.better_urllib_head.open', side_effect=mock_open):
-        response = check_docker.head_url(url='/test')
+    with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=mock_open):
+        response = check_docker.head_url(url='https://example.com/test')
         assert response.getheader('test', None) == 'test_value'
 
 
-def test_head_url_with_token(check_docker):
-    mock_response = FakeHttpResponse(method='HEAD')
+def test_head_url_with_oauth2(check_docker):
+    headers1 = {
+        'www-authenticate': 'Bearer realm="https://docker-auth.example.com/auth",service="token-service",scope="repository:something/something_else:pull"'}
+    mock_response1 = FakeHttpResponse(method='HEAD', http_code=401, headers=headers1)
+
+    mock_response2 = FakeHttpResponse(method='HEAD', http_code=200, headers={'test': 'test'})
+
+    with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=[mock_response1, mock_response2]), \
+         patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_outh2_token',
+               return_value='test_token') as get_token:
+        response = check_docker.head_url(url='https://example.com/test')
+        assert response == mock_response2
+        assert get_token.call_count == 1
+
+
+def test_head_url_with_oauth2_loop(check_docker):
+    headers = {
+        'www-authenticate': 'Bearer realm="https://docker-auth.example.com/auth",service="token-service",scope="repository:something/something_else:pull"'}
+    mock_response = FakeHttpResponse(method='HEAD', http_code=401, headers=headers)
 
     def mock_open(*args, **kwargs):
-        assert ('Authorization', 'Bearer test_token') in check_docker.better_urllib_head.addheaders
         return mock_response
 
-    with patch('check_docker.check_docker.better_urllib_head.open', side_effect=mock_open):
-        check_docker.head_url(url='/test', auth_token="test_token")
-
-
-def test_head_url_401(check_docker):
-    mock_response = FakeHttpResponse(content=b'', http_code=401, method='HEAD')
-    exception = HTTPError(code=401, fp=mock_response, url='url', msg='msg', hdrs=[])
-
-    with patch('check_docker.check_docker.better_urllib_head.open', side_effect=exception):
-        response = check_docker.head_url(url='/test')
-        assert response == mock_response
+    with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=mock_open), \
+         patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_outh2_token',
+               return_value='test_token') as get_token:
+        with pytest.raises(HTTPError):
+            check_docker.head_url(url='https://example.com/test')
 
 
 def test_head_url_500(check_docker):
     expected_exception = HTTPError(code=500, fp=None, url='url', msg='msg', hdrs=[])
-    with patch('check_docker.check_docker.better_urllib_head.open', side_effect=expected_exception):
-        try:
-            check_docker.head_url(url='/test')
-        except Exception as received_exception:
-            assert expected_exception == received_exception
+    with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=expected_exception), \
+         pytest.raises(HTTPError):
+        check_docker.head_url(url='https://example.com/test')
 
 
 @pytest.mark.parametrize("func", [
@@ -745,9 +756,12 @@ def test_parse_image_name(check_docker, url, expected):
 
 
 def test_get_manifest_auth_token(check_docker):
-    with patch('check_docker.check_docker.get_url', return_value=({'token': 'test'}, 200)):
+    obj = {'token': 'test'}
+    encoded = json.dumps(obj=obj).encode('utf-8')
+    expected_response = FakeHttpResponse(content=encoded, http_code=200)
+    with patch('check_docker.check_docker.request.urlopen', return_value=expected_response):
         www_authenticate_header = 'Bearer realm="https://example.com/token",service="example.com",scope="repository:test:pull"'
-        token = check_docker.get_manifest_auth_token(www_authenticate_header)
+        token = check_docker.Oauth2TokenAuthHandler._get_outh2_token(www_authenticate_header)
         assert token == 'test'
 
 
@@ -794,8 +808,7 @@ def test_get_digest_from_registry_missing_digest(check_docker):
     response = FakeHttpResponse(content=b"", http_code=401, headers={
         'Www-Authenticate': 'Bearer realm="https://example.com/token",service="example.com",scope="repository:test:pull"'})
 
-    with patch('check_docker.check_docker.head_url', return_value=response), \
-         patch('check_docker.check_docker.get_manifest_auth_token', return_value='test_token'):
+    with patch('check_docker.check_docker.head_url', return_value=response):
         with pytest.raises(check_docker.RegistryError):
             check_docker.get_digest_from_registry('https://example.com/v2/test/manifests/lastest')
 
