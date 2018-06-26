@@ -235,7 +235,22 @@ def evaluate_numeric_thresholds(container, value, thresholds, name, short_name,
     global performance_data
     performance_data.append(perf_string)
 
-    results_str = "{} {} is {}{}".format(container, name, rounded_value, thresholds.units)
+    if thresholds.units == 's':
+        remainder = value
+        display_value = ""
+        if remainder > 24 * 60 * 60:
+            days, remainder = divmod(remainder, 24 * 60 * 60)
+            display_value += "{}d ".format(int(days))
+        if remainder > 60 * 60:
+            hours, remainder = divmod(remainder, 60 * 60)
+            display_value += "{}h ".format(int(hours))
+        if remainder > 60:
+            minutes, remainder = divmod(remainder, 60)
+            display_value += "{}min ".format(int(minutes))
+        display_value += "{}s".format(int(remainder))
+        results_str = "{} {} is {}".format(container, name, display_value)
+    else:
+        results_str = "{} {} is {}{}".format(container, name, rounded_value, thresholds.units)
 
     if greater_than:
         comparator = lambda value, threshold: value >= threshold
