@@ -16,7 +16,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2018"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.0.6"
+__version__ = "2.0.7"
 
 '''
 nrpe compatible check for docker swarm
@@ -223,6 +223,8 @@ def process_args(args):
                              nargs='+',
                              default=[],
                              help='One or more RegEx that match the names of the services(s) to check.')
+
+    parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
 
     if len(args) == 0:
         parser.print_help()

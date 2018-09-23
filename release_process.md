@@ -23,13 +23,13 @@
 1. CodeClimate doesn't show scary issues (need to modify analyized branch)
 1. Upload package to test repo
 
-        twine upload --user XXXX --repository-url https://test.pypi.org/legacy/ dist/check_docker-2.0.x.tar.gz
+        twine upload --repository testpypi dist/check_docker-2.0.x.tar.gz
 1. Check test project page for formatting
 
    https://test.pypi.org/project/check_docker/
 1. Upload package to prod repo
 
-        twine upload --user XXXX --repository-url https://upload.pypi.org/legacy/ dist/check_docker-2.0.x.tar.gz
+        twine upload -r pypi dist/check_docker-2.0.x.tar.gz
 1. Check project page for formatting
 
    https://pypi.org/project/check_docker/

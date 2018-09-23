@@ -25,7 +25,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2018"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.0.6"
+__version__ = "2.0.7"
 
 '''
 nrpe compatible check for docker containers.
@@ -468,8 +468,8 @@ def parse_image_name(image_name):
     #   https://docs.docker.com/engine/reference/commandline/tag/#extended-description
     #   https://github.com/docker/distribution/blob/master/reference/regexp.go
     host_segment_re = '[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?'
-    hostname_re = '({host_segment}\.)+{host_segment}'.format(host_segment=host_segment_re)
-    registry_re = '((?P<registry>({hostname_re}(:\d+)?|{host_segment_re}:\d+))/)'.format(
+    hostname_re = r'({host_segment}\.)+{host_segment}'.format(host_segment=host_segment_re)
+    registry_re = r'((?P<registry>({hostname_re}(:\d+)?|{host_segment_re}:\d+))/)'.format(
         host_segment_re=host_segment_re, hostname_re=hostname_re)
     name_component_ends_re = '[a-z0-9]'
     name_component_middle_re = '[a-z0-9._-]'  # Ignoring spec limit of two _
@@ -509,7 +509,7 @@ def check_memory(container, thresholds):
 
     inspection = get_stats(container)
 
-    # Subtracting cache to match `docker stats` does.
+    # Subtracting cache to match what `docker stats` does.
     adjusted_usage = inspection['memory_stats']['usage'] - inspection['memory_stats']['stats']['total_cache']
     if thresholds.units == '%':
         max = 100
@@ -805,6 +805,8 @@ def process_args(args):
                         metavar='WARN:CRIT',
                         help='Container restart thresholds.')
 
+    parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
+
     if len(args) == 0:
         parser.print_help()
 
@@ -832,7 +834,8 @@ def process_args(args):
 def no_checks_present(parsed_args):
     # Look for all functions whose name starts with 'check_'
     checks = [key[6:] for key in globals().keys() if key.startswith('check_')]
-    return all(getattr(parsed_args, check) is None for check in checks)
+    # Act like --present is a check though it is not implemented like one
+    return all(getattr(parsed_args, check) is None for check in checks) and not parsed_args.present
 
 
 def socketfile_permissions_failure(parsed_args):
@@ -869,6 +872,10 @@ def perform_checks(raw_args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
         return
 
+    if args.containers == ["all"] and args.present:
+        unknown("You can not use --present without --containers")
+        return
+
     if no_checks_present(args):
         unknown("No checks specified.")
         return
@@ -877,7 +884,7 @@ def perform_checks(raw_args):
     #############################################################################################
     containers = get_containers(args.containers, args.present)
 
-    if len(containers) == 0:
+    if len(containers) == 0 and not args.present:
         unknown("No containers names found matching criteria")
         return
 

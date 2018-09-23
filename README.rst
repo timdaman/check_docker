@@ -72,7 +72,7 @@ check_docker Usage
                          [--memory WARN:CRIT:UNITS] [--status STATUS] [--health]
                          [--uptime WARN:CRIT] [--version]
                          [--insecure-registries INSECURE_REGISTRIES [INSECURE_REGISTRIES ...]]
-                         [--restarts WARN:CRIT]
+                         [--restarts WARN:CRIT] [-V]
 
   Check docker containers.
 
@@ -113,6 +113,8 @@ check_docker Usage
                           Useful when using "--version" with images from
                           insecure registries.
     --restarts WARN:CRIT  Container restart thresholds.
+    -V                    show program's version number and exit
+
 
 check_swarm Usage
 -----------------
@@ -123,7 +125,7 @@ check_swarm Usage
                      [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
                      | --secure-connection [<ip/host address>:<port>]]
                      [--timeout TIMEOUT]
-                     (--swarm | --service SERVICE [SERVICE ...])
+                     (--swarm | --service SERVICE [SERVICE ...]) [-V]
 
   Check docker swarm.
 
@@ -139,17 +141,14 @@ check_swarm Usage
     --service SERVICE [SERVICE ...]
                           One or more RegEx that match the names of the
                           services(s) to check.
-  usage: check_swarm [-h]
-                     [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
-                     | --secure-connection [<ip/host address>:<port>]]
-                     [--timeout TIMEOUT]
-                     (--swarm | --service SERVICE [SERVICE ...])
+    -V                    show program's version number and exit
 
 Gotchas
 -------
 
 -  When using check_docker with older versions of docker (I have seen 1.4 and 1.5) –status only supports ‘running’, ‘restarting’, and ‘paused’.
 -  When using check_docker, if no container is specified, all containers are checked. Some containers may return critcal status if the selected check(s) require a running container.
+-  When using check_docker, --present cannot be used without --containers to indicate what to check the presence of.
 
 .. |Build Status| image:: https://travis-ci.org/timdaman/check_docker.svg?branch=master
    :target: https://travis-ci.org/timdaman/check_docker
