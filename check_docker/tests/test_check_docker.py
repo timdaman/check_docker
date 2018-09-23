@@ -138,6 +138,14 @@ def test_get_url_calls(check_docker, func):
         getattr(check_docker, func)('container')
         assert patched.call_count == 1
 
+@pytest.mark.parametrize("value, expected", [
+    (1,["1s"]),
+    (61, ["1min", "1s"]),
+    (3661, ["1h", "1min", "1s"]),
+    (86401, ["1d", "1s"])
+])
+def test_pretty_time(check_docker, value, expected):
+    assert check_docker.pretty_time(value) == expected
 
 @pytest.mark.parametrize("value, rc, messages, perf_data", [
     (1, cd.OK_RC, ['OK: container metric is 1B'], ['container_met=1B;2;3;0;10']),
@@ -532,6 +540,15 @@ def test_present_check(check_docker):
     args = ('--status', 'running')
     result = check_docker.process_args(args=args)
     assert not check_docker.no_checks_present(result)
+
+
+def test_disallow_present_without_containers(check_docker):
+    args = ('--cpu', '0:0', '--present')
+    with patch('check_docker.check_docker.get_containers') as patched_get_containers:
+        with patch('check_docker.check_docker.unknown') as patched_unknown:
+            check_docker.perform_checks(args)
+            assert patched_unknown.call_count == 1
+            assert patched_get_containers.call_count == 0
 
 
 def test_get_containers_1(check_docker, sample_containers_json, mock_get_container_info):

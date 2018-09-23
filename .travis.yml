@@ -7,7 +7,7 @@ python:
   - "3.7-dev"
 install:
   - pip install -r dev_requirements.txt
-  - pip install codeclimate-test-reporter coverage==4.3.4
+  - pip install codeclimate-test-reporter coverage
 # command to run tests
 script:
   - py.test --cov=check_docker
