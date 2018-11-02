@@ -860,6 +860,8 @@ def socketfile_permissions_failure(parsed_args):
 
 def print_results():
     messages_concat = '; '.join(messages)
+    if len(messages_concat) == 0:
+        messages_concat = 'OK'
     perfdata_concat = ' '.join(performance_data)
     if len(performance_data) > 0:
         print(messages_concat + '|' + perfdata_concat)
