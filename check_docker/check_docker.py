@@ -84,6 +84,8 @@ threads = []
 # This is used during testing
 DISABLE_THREADING = False
 
+# How verbose should the output be
+VERBOSE = False
 
 # Hacked up urllib to handle sockets
 #############################################################################################
@@ -397,7 +399,8 @@ def set_rc(new_rc):
 
 def ok(message):
     set_rc(OK_RC)
-    messages.append('OK: ' + message)
+    if VERBOSE:
+        messages.append('OK: ' + message)
 
 
 def warning(message):
@@ -805,6 +808,13 @@ def process_args(args):
                         metavar='WARN:CRIT',
                         help='Container restart thresholds.')
 
+    # Verbose
+    parser.add_argument('--verbose',
+                        dest='verbose',
+                        default=None,
+                        action='store_true',
+                        help="Show more verbose output")
+
     parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
 
     if len(args) == 0:
@@ -879,6 +889,10 @@ def perform_checks(raw_args):
     if no_checks_present(args):
         unknown("No checks specified.")
         return
+
+    if args.verbose == True:
+        global VERBOSE
+        VERBOSE = True
 
     # Here is where all the work happens
     #############################################################################################
