@@ -419,7 +419,8 @@ def require_running(name):
     def inner_decorator(func):
         def wrapper(container, *args, **kwargs):
             container_state = get_state(container)
-            if container_state["Running"]:
+            state = normalize_state(container_state)
+            if state == "Running":
                 func(container, *args, **kwargs)
             else:
                 # container is not running, can't perform check
@@ -497,6 +498,25 @@ def parse_image_name(image_name):
     return ImageName(registry=registry, name=image_name, tag=image_tag, full_name=full_image_name)
 
 
+def normalize_state(status_info):
+    # Ugh, docker used to report state in as silly way then they figured out how to do it better.
+    # This tries the simpler new way and if that doesn't work fails back to the old way
+
+    # On new docker engines the status holds whatever the current state is, running, stopped, paused, etc.
+    if "Status" in status_info:
+        return status_info['Status']
+
+    if status_info["Restarting"]:
+        return "Restarting"
+    if status_info["Paused"]:
+        return "Paused"
+    if status_info["Dead"]:
+        return "Dead"
+    if status_info["Running"]:
+            return "Running"
+    return "Exited"
+
+
 # Checks
 #############################################################################################
 
@@ -525,20 +545,11 @@ def check_memory(container, thresholds):
 @multithread_execution()
 def check_status(container, desired_state):
     normized_desired_state = desired_state.lower()
-    state = get_state(container)
-    # On new docker engines the status holds whatever the current state is, running, stopped, paused, etc.
-    if "Status" in state:
-        if normized_desired_state != get_state(container)['Status']:
-            critical("{} state is not {}".format(container, desired_state))
-            return
-    else:  # Assume we are checking an older docker which only uses keys and true false values to indicate state
-        leading_cap_state_name = normized_desired_state.title()
-        if leading_cap_state_name in state:
-            if not state[leading_cap_state_name]:
-                critical("{} state is not {}".format(container, leading_cap_state_name))
-                return
-        else:
-            unknown("For {} cannot find a value for {} in state".format(container, desired_state))
+    normalized_state = normalize_state(get_state(container))
+    normalized_state = normalized_state.lower()
+    if normized_desired_state != normalized_state:
+        critical("{} state is not {}".format(container, desired_state))
+        return
     ok("{} status is {}".format(container, desired_state))
 
 

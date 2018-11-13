@@ -53,3 +53,17 @@ services:
     environment:
       - isolated=true
     command: --cov=check_docker
+
+  python-3.7-test:
+    build:
+      args:
+        - tag=3.7-alpine
+      context: .
+      dockerfile: testing_tools/Dockerfile
+    volumes:
+      - $PWD:$PWD
+    working_dir: $PWD
+    network_mode: "none"
+    environment:
+      - isolated=true
+    command: --cov=check_docker

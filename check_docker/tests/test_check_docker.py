@@ -218,10 +218,10 @@ def test_set_rc(check_docker):
 
 
 @pytest.mark.parametrize('response, expected_status', (
-        ({'State': {'Running': True}}, cd.OK_RC),
+        ({'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.OK_RC),
+        ({'State': {'Running': True, "Restarting": True, "Paused": False, "Dead": False}}, cd.CRITICAL_RC),
         ({'State': {'Status': 'stopped'}}, cd.CRITICAL_RC),
-        ({'State': {'Running': False}}, cd.CRITICAL_RC),
-        ({'State': {'foo': False}}, cd.UNKNOWN_RC)
+        ({'State': {'Running': False, "Restarting": False, "Paused": False, "Dead": False}}, cd.CRITICAL_RC),
 ))
 def test_check_status(check_docker, response, expected_status):
     def mock_response(*args, **kwargs):
@@ -234,11 +234,11 @@ def test_check_status(check_docker, response, expected_status):
 
 
 @pytest.mark.parametrize('response, expected_status', (
-        ({'State': {'Health': {'Status': 'healthy'}, 'Running': True}}, cd.OK_RC),
-        ({'State': {'Health': {'Status': 'unhealthy'}, 'Running': True}}, cd.CRITICAL_RC),
-        ({'State': {'Running': True}}, cd.UNKNOWN_RC),
-        ({'State': {'Health': {}, 'Running': True}}, cd.UNKNOWN_RC),
-        ({'State': {'Health': {'Status': 'starting'}, 'Running': True}}, cd.UNKNOWN_RC)
+        ({'State': {'Health': {'Status': 'healthy'}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.OK_RC),
+        ({'State': {'Health': {'Status': 'unhealthy'}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.CRITICAL_RC),
+        ({'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.UNKNOWN_RC),
+        ({'State': {'Health': {}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.UNKNOWN_RC),
+        ({'State': {'Health': {'Status': 'starting'}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.UNKNOWN_RC)
 ))
 def test_check_health(check_docker, response, expected_status):
     def mock_response(*args, **kwargs):
@@ -262,7 +262,7 @@ def test_check_health(check_docker, response, expected_status):
 def test_check_memory(check_docker_with_units, memory_stats, warn, crit, units, expected_status):
     response = {
         'memory_stats': memory_stats,
-        'State': {'Running': True}
+        'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False}
     }
 
     def mock_response(*args, **kwargs):
@@ -319,7 +319,7 @@ def test_check_cpu(check_docker, host_config, cpu_stats, precpu_stats, warn, cri
         'precpu_stats': precpu_stats
     }
     container_info = {
-        'State': {'Running': True},
+        'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False},
         "HostConfig": host_config
     }
 
@@ -344,7 +344,7 @@ def test_calculate_cpu(check_docker, host_config, cpu_stats, precpu_stats, warn,
         'precpu_stats': precpu_stats
     }
     container_info = {
-        'State': {'Running': True},
+        'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False},
         "HostConfig": host_config
     }
 
@@ -354,7 +354,7 @@ def test_calculate_cpu(check_docker, host_config, cpu_stats, precpu_stats, warn,
 
 def test_require_running(check_docker):
     """ This confirms the 'require_running decorator is working properly with a stopped container"""
-    container_info = {'RestartCount': 0, 'State': {'Running': False}}
+    container_info = {'RestartCount': 0, 'State': {'Running': False, "Restarting": True}}
 
     def mock_info_response(*args, **kwargs):
         return container_info
@@ -371,7 +371,7 @@ def test_require_running(check_docker):
         (3, cd.CRITICAL_RC),
 ))
 def test_restarts(check_docker, restarts, expected_status):
-    container_info = {'RestartCount': restarts, 'State': {'Running': True}}
+    container_info = {'RestartCount': restarts, 'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False}}
 
     def mock_info_response(*args, **kwargs):
         return container_info
@@ -393,7 +393,10 @@ def test_check_uptime1(check_docker, uptime, warn, crit, expected_status):
     time_str = time.strftime("%Y-%m-%dT%H:%M:%S.0000000000Z")
     json_results = {
         'State': {'StartedAt': time_str,
-                  'Running': True},
+                  'Running': True,
+                  "Restarting": False,
+                  "Paused": False,
+                  "Dead": False},
     }
 
     def mock_response(*args, **kwargs):
@@ -518,7 +521,7 @@ def test_units_base(check_docker, fs, arg, one_kb):
     with patch('check_docker.check_docker.get_containers', return_value=['test']), \
          patch('check_docker.check_docker.get_stats',
                return_value={'memory_stats': {'limit': one_kb, 'usage': one_kb, 'stats': {'total_cache': 0}}}), \
-         patch('check_docker.check_docker.get_state', return_value={'Running': True}):
+         patch('check_docker.check_docker.get_state', return_value={'Running': True, "Restarting": False, "Paused": False, "Dead": False}):
         check_docker.perform_checks(['--memory', '0:0:KB', arg])
 
     # Confirm unit adjustment table was updated by argument
