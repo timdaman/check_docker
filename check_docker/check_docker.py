@@ -420,7 +420,7 @@ def require_running(name):
         def wrapper(container, *args, **kwargs):
             container_state = get_state(container)
             state = normalize_state(container_state)
-            if state == "Running":
+            if state.lower() == "running":
                 func(container, *args, **kwargs)
             else:
                 # container is not running, can't perform check
