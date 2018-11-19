@@ -52,7 +52,6 @@ services:
     network_mode: "none"
     environment:
       - isolated=true
-    command: --cov=check_docker
 
   python-3.7-test:
     build:
@@ -66,4 +65,5 @@ services:
     network_mode: "none"
     environment:
       - isolated=true
+    entrypoint: [ "py.test", "--random-order" ]
     command: --cov=check_docker

@@ -164,14 +164,14 @@ def test_args_mixed_checks(check_swarm):
 
 
 def test_socketfile_failure_false(check_swarm, fs):
-    fs.CreateFile('/tmp/socket', contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file('/tmp/socket', contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ('--swarm', '--connection', '/tmp/socket')
     result = check_swarm.process_args(args=args)
     assert not check_swarm.socketfile_permissions_failure(parsed_args=result)
 
 
 def test_socketfile_failure_filetype(check_swarm, fs):
-    fs.CreateFile('/tmp/not_socket', contents='testing')
+    fs.create_file('/tmp/not_socket', contents='testing')
     args = ('--swarm', '--connection', '/tmp/not_socket')
     result = check_swarm.process_args(args=args)
     assert check_swarm.socketfile_permissions_failure(parsed_args=result)
@@ -184,21 +184,21 @@ def test_socketfile_failure_missing(check_swarm, fs):
 
 
 def test_socketfile_failure_unwriteable(check_swarm, fs):
-    fs.CreateFile('/tmp/unwritable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+    fs.create_file('/tmp/unwritable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
     args = ('--swarm', '--connection', '/tmp/unwritable')
     result = check_swarm.process_args(args=args)
     assert check_swarm.socketfile_permissions_failure(parsed_args=result)
 
 
 def test_socketfile_failure_unreadable(check_swarm, fs):
-    fs.CreateFile('/tmp/unreadable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+    fs.create_file('/tmp/unreadable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
     args = ('--swarm', '--connection', '/tmp/unreadable')
     result = check_swarm.process_args(args=args)
     assert check_swarm.socketfile_permissions_failure(parsed_args=result)
 
 
 def test_socketfile_failure_http(check_swarm, fs):
-    fs.CreateFile('/tmp/http', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+    fs.create_file('/tmp/http', contents='', st_mode=(stat.S_IFSOCK | 0o000))
     args = ('--swarm', '--connection', 'http://127.0.0.1')
     result = check_swarm.process_args(args=args)
     assert not check_swarm.socketfile_permissions_failure(parsed_args=result)
@@ -210,7 +210,7 @@ def services():
 
 
 def test_check_swarm_called(check_swarm, fs, services):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--swarm']
     with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
         with patch('check_docker.check_swarm.check_swarm') as patched:
@@ -219,7 +219,7 @@ def test_check_swarm_called(check_swarm, fs, services):
 
 
 def test_check_swarm_results_OK(check_swarm, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--swarm']
     with patch('check_docker.check_swarm.get_swarm_status', return_value=200):
         check_swarm.perform_checks(args)
@@ -227,7 +227,7 @@ def test_check_swarm_results_OK(check_swarm, fs):
 
 
 def test_check_swarm_results_CRITICAL(check_swarm, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--swarm']
     with patch('check_docker.check_swarm.get_swarm_status', return_value=406):
         check_swarm.perform_checks(args)
@@ -235,7 +235,7 @@ def test_check_swarm_results_CRITICAL(check_swarm, fs):
 
 
 def test_check_service_called(check_swarm, services, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'FOO']
     with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
         with patch('check_docker.check_swarm.check_service') as patched:
@@ -244,7 +244,7 @@ def test_check_service_called(check_swarm, services, fs):
 
 
 def test_check_service_results_OK(check_swarm, services, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'FOO']
     with patch('check_docker.check_swarm.get_services', return_value=['FOO', 'BAR']):
         with patch('check_docker.check_swarm.get_service_info', return_value=(services, 200)):
@@ -253,7 +253,7 @@ def test_check_service_results_OK(check_swarm, services, fs):
 
 
 def test_check_service_results_FAIL_missing(check_swarm, services, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing1']
     with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
         check_swarm.perform_checks(args)
@@ -261,7 +261,7 @@ def test_check_service_results_FAIL_missing(check_swarm, services, fs):
 
 
 def test_check_service_results_FAIL_unknown(check_swarm, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'FOO']
     with patch('check_docker.check_swarm.get_services', return_value=['FOO', 'BAR']):
         with patch('check_docker.check_swarm.get_service_info', return_value=('', 500)):
@@ -270,7 +270,7 @@ def test_check_service_results_FAIL_unknown(check_swarm, fs):
 
 
 def test_check_no_services(check_swarm, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing2']
     with patch('check_docker.check_swarm.get_url', return_value=([], 200)):
         check_swarm.perform_checks(args)
@@ -278,7 +278,7 @@ def test_check_no_services(check_swarm, fs):
 
 
 def test_check_missing_service(check_swarm, services, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing3']
     with patch('check_docker.check_swarm.get_url', return_value=(services, 200)):
         check_swarm.perform_checks(args)
@@ -286,7 +286,7 @@ def test_check_missing_service(check_swarm, services, fs):
 
 
 def test_check_not_swarm_service(check_swarm, fs):
-    fs.CreateFile(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--service', 'missing4']
     with patch('check_docker.check_swarm.get_url', return_value=('', 406)):
         check_swarm.perform_checks(args)

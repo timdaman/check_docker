@@ -517,7 +517,7 @@ def test_units_base(check_docker, fs, arg, one_kb):
     parsed_args = check_docker.process_args([arg])
     assert parsed_args.units_base == one_kb, "units_base should be influenced by units flags"
 
-    fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     with patch('check_docker.check_docker.get_containers', return_value=['test']), \
          patch('check_docker.check_docker.get_stats',
                return_value={'memory_stats': {'limit': one_kb, 'usage': one_kb, 'stats': {'total_cache': 0}}}), \
@@ -589,7 +589,7 @@ def test_get_containers_4(check_docker, sample_containers_json, mock_get_contain
 
 
 def test_socketfile_failure_false(check_docker, fs):
-    fs.CreateFile('/tmp/socket', contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file('/tmp/socket', contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ('--status', 'running', '--connection', '/tmp/socket')
     result = check_docker.process_args(args=args)
     assert not check_docker.socketfile_permissions_failure(parsed_args=result)
@@ -606,7 +606,7 @@ def test_socketfile_failure_result(check_docker):
 
 
 def test_socketfile_failure_filetype(check_docker, fs):
-    fs.CreateFile('/tmp/not_socket', contents='testing')
+    fs.create_file('/tmp/not_socket', contents='testing')
     args = ('--status', 'running', '--connection', '/tmp/not_socket')
     result = check_docker.process_args(args=args)
     assert check_docker.socketfile_permissions_failure(parsed_args=result)
@@ -619,28 +619,28 @@ def test_socketfile_failure_missing(check_docker, fs):
 
 
 def test_socketfile_failure_unwriteable(check_docker, fs):
-    fs.CreateFile('/tmp/unwritable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+    fs.create_file('/tmp/unwritable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
     args = ('--status', 'running', '--connection', '/tmp/unwritable')
     result = check_docker.process_args(args=args)
     assert check_docker.socketfile_permissions_failure(parsed_args=result)
 
 
 def test_socketfile_failure_unreadable(check_docker, fs):
-    fs.CreateFile('/tmp/unreadable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+    fs.create_file('/tmp/unreadable', contents='', st_mode=(stat.S_IFSOCK | 0o000))
     args = ('--status', 'running', '--connection', '/tmp/unreadable')
     result = check_docker.process_args(args=args)
     assert check_docker.socketfile_permissions_failure(parsed_args=result)
 
 
 def test_socketfile_failure_http(check_docker, fs):
-    fs.CreateFile('/tmp/http', contents='', st_mode=(stat.S_IFSOCK | 0o000))
+    fs.create_file('/tmp/http', contents='', st_mode=(stat.S_IFSOCK | 0o000))
     args = ('--status', 'running', '--connection', 'http://127.0.0.1')
     result = check_docker.process_args(args=args)
     assert not check_docker.socketfile_permissions_failure(parsed_args=result)
 
 
 def test_perform_with_no_containers(check_docker, fs):
-    fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--cpu', '0:0']
     with patch('check_docker.check_docker.get_url', return_value=([], 200)):
         with patch('check_docker.check_docker.unknown') as patched:
@@ -649,7 +649,7 @@ def test_perform_with_no_containers(check_docker, fs):
 
 
 def test_perform_with_uncaught_exception(check_docker, fs):
-    fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     with patch('check_docker.check_docker.get_url', return_value=([{'Names': ('/thing1',)}], 200)), \
          patch('check_docker.check_docker.check_cpu', side_effect=Exception("Oh no!")), \
          patch('check_docker.check_docker.argv', side_effect=['', '--cpu', '0:0']), \
@@ -669,7 +669,7 @@ def test_perform_with_uncaught_exception(check_docker, fs):
         ([], 'unknown')
 ))
 def test_perform(check_docker, fs, args, called):
-    fs.CreateFile(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    fs.create_file(check_docker.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     with patch('check_docker.check_docker.get_containers', return_value=['thing1']):
         with patch('check_docker.check_docker.' + called) as patched:
             check_docker.perform_checks(args)

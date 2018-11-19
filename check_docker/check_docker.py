@@ -25,7 +25,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2018"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.0.7"
+__version__ = "2.0.8"
 
 '''
 nrpe compatible check for docker containers.
