@@ -506,15 +506,16 @@ def normalize_state(status_info):
     if "Status" in status_info:
         return status_info['Status']
 
+    status = 'Exited'
     if status_info["Restarting"]:
-        return "Restarting"
-    if status_info["Paused"]:
-        return "Paused"
-    if status_info["Dead"]:
-        return "Dead"
-    if status_info["Running"]:
+        status =  'Restarting'
+    elif status_info["Paused"]:
+        status = 'Paused'
+    elif status_info["Dead"]:
+        status = 'Dead'
+    elif status_info["Running"]:
             return "Running"
-    return "Exited"
+    return status
 
 
 # Checks
@@ -545,8 +546,7 @@ def check_memory(container, thresholds):
 @multithread_execution()
 def check_status(container, desired_state):
     normized_desired_state = desired_state.lower()
-    normalized_state = normalize_state(get_state(container))
-    normalized_state = normalized_state.lower()
+    normalized_state = normalize_state(get_state(container)).lower()
     if normized_desired_state != normalized_state:
         critical("{} state is not {}".format(container, desired_state))
         return
