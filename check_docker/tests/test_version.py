@@ -33,4 +33,4 @@ def test_ensure_new_version():
             http_code = resp.getcode()
     except HTTPError as e:
         http_code = e.code
-    assert http_code == 404, "Version already exists. Ignore this if you are workign on a PR"
+    assert http_code == 404, "Version already exists. Ignore this if you are working on a PR"
