@@ -6,6 +6,7 @@ import os
 import re
 import socket
 import stat
+import ssl
 from functools import lru_cache
 from http.client import HTTPConnection
 from sys import argv
@@ -73,7 +74,7 @@ class SocketFileHandler(AbstractHTTPHandler):
 better_urllib_get = OpenerDirector()
 better_urllib_get.addheaders = DEFAULT_HEADERS.copy()
 better_urllib_get.add_handler(HTTPHandler())
-better_urllib_get.add_handler(HTTPSHandler())
+#better_urllib_get.add_handler(HTTPSHandler())
 better_urllib_get.add_handler(SocketFileHandler())
 
 
@@ -205,6 +206,28 @@ def process_args(args):
                         type=float,
                         default=DEFAULT_TIMEOUT,
                         help='Connection timeout in seconds. (default: %(default)s)')
+    
+        # TLS CA File
+    parser.add_argument('--cafile',
+                        dest='cafile',
+                        action='store',
+                        type=str,
+                        help='TLS CA File (ex: RootCA.pem)')
+    
+    # TLS Cert File
+    parser.add_argument('--certfile',
+                        dest='certfile',
+                        action='store',
+                        type=str,
+                        help='TLS Cert File (ex: TLS-server.pem)')
+
+    # TLS Key File
+    parser.add_argument('--keyfile',
+                        dest='keyfile',
+                        action='store',
+                        type=str,
+                        help='TLS Key File (ex: Key-server.pem)')
+
 
     swarm_group = parser.add_mutually_exclusive_group(required=True)
 
@@ -266,6 +289,19 @@ def print_results():
 
 def perform_checks(raw_args):
     args = process_args(raw_args)
+    
+        # Add Certificate files for secure connection:
+    if args.secure_connection:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+        if args.cafile and args.certfile and args.keyfile: 
+            ctx.verify_mode = ssl.CERT_REQUIRED
+            ctx.check_hostname = True
+            ctx.load_verify_locations(args.cafile)
+            ctx.load_cert_chain(certfile=args.certfile, keyfile=args.keyfile)
+        better_urllib_get.add_handler(HTTPSHandler(context=ctx))
+    elif args.connection:
+        better_urllib_get.add_handler(HTTPSHandler())
+    
     if socketfile_permissions_failure(args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
     else:
@@ -294,3 +330,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
