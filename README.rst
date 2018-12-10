@@ -146,7 +146,7 @@ check_swarm Usage
 Gotchas
 -------
 
--  When using check_docker with older versions of docker (I have seen 1.4 and 1.5) –status only supports ‘running’, ‘restarting’, and ‘paused’.
+-  When using check_docker with older versions of docker (I have seen 1.4 and 1.5) -status only supports 'running', 'restarting', and 'paused'.
 -  When using check_docker, if no container is specified, all containers are checked. Some containers may return critcal status if the selected check(s) require a running container.
 -  When using check_docker, --present cannot be used without --containers to indicate what to check the presence of.
 
