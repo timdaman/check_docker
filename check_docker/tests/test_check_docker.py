@@ -1,6 +1,7 @@
+from collections import defaultdict
+
 import json
 import stat
-from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 
 try:
@@ -43,6 +44,8 @@ def check_docker_fresh():
 @pytest.fixture()
 def check_docker():
     cd.rc = -1
+    check_docker.no_ok = False
+    check_docker.no_performance = False
     cd.timeout = 1
     cd.messages = []
     cd.performance_data = []
@@ -138,14 +141,16 @@ def test_get_url_calls(check_docker, func):
         getattr(check_docker, func)('container')
         assert patched.call_count == 1
 
+
 @pytest.mark.parametrize("value, expected", [
-    (1,["1s"]),
+    (1, ["1s"]),
     (61, ["1min", "1s"]),
     (3661, ["1h", "1min", "1s"]),
     (86401, ["1d", "1s"])
 ])
 def test_pretty_time(check_docker, value, expected):
     assert check_docker.pretty_time(value) == expected
+
 
 @pytest.mark.parametrize("value, rc, messages, perf_data", [
     (1, cd.OK_RC, ['OK: container metric is 1B'], ['container_met=1B;2;3;0;10']),
@@ -234,11 +239,16 @@ def test_check_status(check_docker, response, expected_status):
 
 
 @pytest.mark.parametrize('response, expected_status', (
-        ({'State': {'Health': {'Status': 'healthy'}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.OK_RC),
-        ({'State': {'Health': {'Status': 'unhealthy'}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.CRITICAL_RC),
+        ({'State': {'Health': {'Status': 'healthy'}, 'Running': True, "Restarting": False, "Paused": False,
+                    "Dead": False}}, cd.OK_RC),
+        ({'State': {'Health': {'Status': 'unhealthy'}, 'Running': True, "Restarting": False, "Paused": False,
+                    "Dead": False}}, cd.CRITICAL_RC),
         ({'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.UNKNOWN_RC),
-        ({'State': {'Health': {}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.UNKNOWN_RC),
-        ({'State': {'Health': {'Status': 'starting'}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}}, cd.UNKNOWN_RC)
+        (
+                {'State': {'Health': {}, 'Running': True, "Restarting": False, "Paused": False, "Dead": False}},
+                cd.UNKNOWN_RC),
+        ({'State': {'Health': {'Status': 'starting'}, 'Running': True, "Restarting": False, "Paused": False,
+                    "Dead": False}}, cd.UNKNOWN_RC)
 ))
 def test_check_health(check_docker, response, expected_status):
     def mock_response(*args, **kwargs):
@@ -371,7 +381,8 @@ def test_require_running(check_docker):
         (3, cd.CRITICAL_RC),
 ))
 def test_restarts(check_docker, restarts, expected_status):
-    container_info = {'RestartCount': restarts, 'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False}}
+    container_info = {'RestartCount': restarts,
+                      'State': {'Running': True, "Restarting": False, "Paused": False, "Dead": False}}
 
     def mock_info_response(*args, **kwargs):
         return container_info
@@ -447,6 +458,8 @@ def test_args_help(check_docker, capsys):
         (('--version',), True, None),
         (('--insecure-registries', 'non-default'), ['non-default'], None),
         (('--restarts', 'non-default'), 'non-default', None),
+        (('--no-ok',), True, False),
+        (('--no-performance',), True, False),
 ))
 def test_args(check_docker, args, expected_value, default_value):
     attrib_name = args[0][2:].replace('-', '_')  # Strip the -- off the first arg
@@ -521,7 +534,8 @@ def test_units_base(check_docker, fs, arg, one_kb):
     with patch('check_docker.check_docker.get_containers', return_value=['test']), \
          patch('check_docker.check_docker.get_stats',
                return_value={'memory_stats': {'limit': one_kb, 'usage': one_kb, 'stats': {'total_cache': 0}}}), \
-         patch('check_docker.check_docker.get_state', return_value={'Running': True, "Restarting": False, "Paused": False, "Dead": False}):
+         patch('check_docker.check_docker.get_state',
+               return_value={'Running': True, "Restarting": False, "Paused": False, "Dead": False}):
         check_docker.perform_checks(['--memory', '0:0:KB', arg])
 
     # Confirm unit adjustment table was updated by argument
@@ -677,14 +691,40 @@ def test_perform(check_docker, fs, args, called):
 
 
 @pytest.mark.parametrize("messages, perf_data, expected", (
-        ([], [], ''),
         (['TEST'], [], 'TEST'),
         (['FOO', 'BAR'], [], 'FOO; BAR'),
         (['FOO', 'BAR'], ['1;2;3;4;'], 'FOO; BAR|1;2;3;4;')
 ))
 def test_print_results(check_docker, capsys, messages, perf_data, expected):
+    # These sometimes get set to true when using random-order plugin, for example --random-order-seed=620808
+    check_docker.no_ok = False
+    check_docker.no_performance = False
     check_docker.messages = messages
     check_docker.performance_data = perf_data
+    check_docker.print_results()
+    out, err = capsys.readouterr()
+    assert out.strip() == expected
+
+
+@pytest.mark.parametrize("messages, perf_data, no_ok, no_performance, expected", (
+        ([], [], False, False, ''),
+        (['TEST'], [], False, False, 'TEST'),
+        (['FOO', 'BAR'], [], False, False, 'FOO; BAR'),
+        (['FOO', 'BAR'], ['1;2;3;4;'], False, False, 'FOO; BAR|1;2;3;4;'),
+        ([], [], True, False, 'OK'),
+        (['OK: TEST'], [], True, False, 'OK'),
+        (['OK: FOO', 'OK: BAR'], [], True, False, 'OK'),
+        (['OK: FOO', 'BAR'], ['1;2;3;4;'], True, False, 'BAR|1;2;3;4;'),
+        ([], [], False, True, ''),
+        (['OK: TEST'], [], False, True, 'OK: TEST'),
+        (['OK: TEST'], ['1;2;3;4;'], False, True, 'OK: TEST'),
+        (['OK: FOO', 'OK: BAR'], ['1;2;3;4;'], True, True, 'OK'),
+))
+def test_print_results_no_ok(check_docker, capsys, messages, perf_data, no_ok, no_performance, expected):
+    check_docker.messages = messages
+    check_docker.performance_data = perf_data
+    check_docker.no_ok = no_ok
+    check_docker.no_performance = no_performance
     check_docker.print_results()
     out, err = capsys.readouterr()
     assert out.strip() == expected

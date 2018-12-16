@@ -4,11 +4,15 @@ from urllib.error import HTTPError
 
 import pytest
 
+import check_docker as module
 from check_docker import check_swarm, check_docker
 
 
 def test_versions_match():
     assert check_docker.__version__ == check_swarm.__version__
+
+def test_module_version_matches():
+    assert module.__version__ == check_docker.__version__
 
 
 @pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',

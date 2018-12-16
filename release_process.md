@@ -6,30 +6,37 @@
 1. Isolated tests pass
 
         ./run_isolated_tests.sh
+
 1. make package
 
-        python setup.py sdist
+        pipenv run flit build --format sdist
+
 1. Uninstall check_docker and install package
 
-        pip uninstall check_docker &&  pip install dist/check_docker-2.0.X.tar.gz
+        pipenv uninstall check_docker && pipenv run flit install --format sdist
+
 1. Bats smoke tests pass
 
         ./run_package_tests.sh
+  
 1. Push to branch
 1. Confirm doc looks good on github
 1. Travis tests pass
 1. Create and merge PR
 1. Confirm Travis still passes
-1. CodeClimate doesn't show scary issues (need to modify analyized branch)
+1. CodeClimate does not show scary issues (need to modify analyzed branch)
 1. Upload package to test repo
 
-        twine upload --repository testpypi dist/check_docker-2.0.x.tar.gz
+        pipenv run flit publish --format sdist
+
 1. Check test project page for formatting
 
    https://test.pypi.org/project/check_docker/
+
 1. Upload package to prod repo
 
-        twine upload -r pypi dist/check_docker-2.0.x.tar.gz
+        pipenv run flit publish --repository  prodpypi  --format sdist
+
 1. Check project page for formatting
 
    https://pypi.org/project/check_docker/

@@ -1,4 +1,0 @@
-include license.txt
-include README.rst
-recursive-include check_docker *.py
-include setup.py
