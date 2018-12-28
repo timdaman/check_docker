@@ -113,6 +113,10 @@ check_docker Usage
                           Useful when using "--version" with images from
                           insecure registries.
     --restarts WARN:CRIT  Container restart thresholds.
+    --no-ok               Make output terse suppressing OK messages. If all
+                          checks are OK return a single OK.
+    --no-performance      Suppress performance data. Reduces output when
+                          performance data is not being used.
     -V                    show program's version number and exit
 
 

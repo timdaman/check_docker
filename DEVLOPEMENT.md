@@ -4,22 +4,26 @@ You should have the following installed
 
 - docker
 - python (version >= 3.0)
-- `pip install -r dev_requirement.txt`
+- pipenv
 - vagrant
 
+Initialize your pipenv 
+
+    pipenv install --skip-lock
+    
 # Running the tests
 
 ## Normal tests
-Pytest is used for testing. You can can run test by running the following from
+tox and Pytest is used for testing. You can can run test by running the following from
 the root of the project
 
-    py.test
+    detox
 
 ## Isolated tests
 Sometimes test cases can interact with Docker on the development machine making
 it hard to determine the cause of a test success or failure. To address this
 you can use the `run_isolated_tests.sh` script to run pytest inside a
-environment isolated from any netwwork. Additionally this isolated test will
+environment isolated from any network. Additionally this isolated test will
 run the unit tests on multiple versions of python so you can validate your
 changes are not python version specific.
 
@@ -27,7 +31,7 @@ changes are not python version specific.
 
 ## Package tests
 These test verify that, after created, the package can be installed and
-runs sucessfully. To do this a test environment is set up in vagrant.
+runs successfully(not just passes unit tests). To do this a test environment is set up in vagrant.
 
     ./run_package_tests.sh
 
@@ -35,7 +39,7 @@ runs sucessfully. To do this a test environment is set up in vagrant.
 The aim is to keep coverage above 90% on the actual checks
 (check_docker.py and check_swarm.py). To generate a coverage report.
 
-    py.test --cov=check_docker/
+    pipenv run py.test --cov=check_docker/
 
 # Tips
 When jumping back and forth between normal and isolated tests the `__pycache__`

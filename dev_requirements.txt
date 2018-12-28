@@ -1,5 +1,0 @@
-pytest
-pytest-random-order
-coverage
-pyfakefs
-pytest-cov

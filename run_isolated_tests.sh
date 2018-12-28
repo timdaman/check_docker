@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-COMPOSE_CMD="docker-compose --project-directory ./  -f testing_tools/isolated_tests.yaml"
+set -eu
 
-$COMPOSE_CMD build
-for test_environment in $($COMPOSE_CMD config --services)
-do
-    printf '\n====================\nRunning %s \n====================\n\n' "$test_environment"
-    $COMPOSE_CMD run --rm "$test_environment"
-done
+(cd testing_tools && docker build -t check_docker_tests .)
+
+docker run --rm -v $PWD:$PWD -w $PWD -ti check_docker_tests detox

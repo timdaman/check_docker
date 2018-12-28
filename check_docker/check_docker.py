@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
+# logging.basicConfig(level=logging.DEBUG)
+import math
+from collections import deque, namedtuple, UserDict, defaultdict
+from sys import argv
+
 import argparse
 import json
 import logging
-# logging.basicConfig(level=logging.DEBUG)
-import math
 import os
 import re
 import socket
 import stat
 import traceback
-from collections import deque, namedtuple, UserDict, defaultdict
 from concurrent import futures
 from datetime import datetime, timezone
 from functools import lru_cache
 from http.client import HTTPConnection
-from sys import argv
 from urllib import request
 from urllib.error import HTTPError, URLError
 from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector, HTTPRedirectHandler, \
@@ -25,7 +26,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2018"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.0.8"
+__version__ = "2.0.9"
 
 '''
 nrpe compatible check for docker containers.
@@ -53,6 +54,12 @@ UNIT_ADJUSTMENTS_TEMPLATE = {
     'TB': 4
 }
 unit_adjustments = None
+
+# Reduce message to a single OK unless a checks fail.
+no_ok = False
+
+# Suppress performance data reporting
+no_performance = False
 
 OK_RC = 0
 WARNING_RC = 1
@@ -508,13 +515,13 @@ def normalize_state(status_info):
 
     status = 'Exited'
     if status_info["Restarting"]:
-        status =  'Restarting'
+        status = 'Restarting'
     elif status_info["Paused"]:
         status = 'Paused'
     elif status_info["Dead"]:
         status = 'Dead'
     elif status_info["Running"]:
-            return "Running"
+        return "Running"
     return status
 
 
@@ -816,6 +823,18 @@ def process_args(args):
                         metavar='WARN:CRIT',
                         help='Container restart thresholds.')
 
+    # no-ok
+    parser.add_argument('--no-ok',
+                        dest='no_ok',
+                        action='store_true',
+                        help='Make output terse suppressing OK messages. If all checks are OK return a single OK.')
+
+    # no-performance
+    parser.add_argument('--no-performance',
+                        dest='no_performance',
+                        action='store_true',
+                        help='Suppress performance data. Reduces output when performance data is not being used.')
+
     parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
 
     if len(args) == 0:
@@ -860,12 +879,22 @@ def socketfile_permissions_failure(parsed_args):
 
 
 def print_results():
-    messages_concat = '; '.join(messages)
-    perfdata_concat = ' '.join(performance_data)
-    if len(performance_data) > 0:
-        print(messages_concat + '|' + perfdata_concat)
+    if no_ok:
+        # Remove all the "OK"s
+        filtered_messages = [message for message in messages if not message.startswith('OK: ')]
+        if len(filtered_messages) == 0:
+            messages_concat = 'OK'
+        else:
+            messages_concat = '; '.join(filtered_messages)
+
     else:
+        messages_concat = '; '.join(messages)
+
+    if no_performance or len(performance_data) == 0:
         print(messages_concat)
+    else:
+        perfdata_concat = ' '.join(performance_data)
+        print(messages_concat + '|' + perfdata_concat)
 
 
 def perform_checks(raw_args):
@@ -878,6 +907,12 @@ def perform_checks(raw_args):
 
     global unit_adjustments
     unit_adjustments = {key: args.units_base ** value for key, value in UNIT_ADJUSTMENTS_TEMPLATE.items()}
+
+    global no_ok
+    no_ok = args.no_ok
+
+    global no_performance
+    no_performance = args.no_ok
 
     if socketfile_permissions_failure(args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))

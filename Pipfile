@@ -1,0 +1,18 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[packages]
+detox = '*'
+tox = '*'
+tox-pyenv = '*'
+pytest = '*'
+pytest-random-order = '*'
+coverage = '*'
+pyfakefs = '*'
+pytest-cov = '*'
+flit = '*'
+
+[requires]
+python_version = "3.7"
