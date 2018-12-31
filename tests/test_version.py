@@ -1,7 +1,7 @@
 import os
 from urllib import request
 from urllib.error import HTTPError
-
+import toml
 import pytest
 
 import check_docker as module
@@ -14,6 +14,11 @@ def test_versions_match():
 def test_module_version_matches():
     assert module.__version__ == check_docker.__version__
 
+def test_project_version_matches():
+    project_config = toml.load("pyproject.toml")
+    project_version = project_config['tool']['poetry']['version']
+
+    assert project_version == check_docker.__version__
 
 @pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
                     reason="Can not reach Python packge index when isolated")

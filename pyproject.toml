@@ -1,14 +1,17 @@
 [build-system]
-requires = ["flit"]
-build-backend = "flit.buildapi"
+requires = ["poetry"]
+build-backend = "poetry.masonry.api"
 
-[tool.flit.metadata]
-module = "check_docker"
-author = "Tim Laurence"
-author-email = "timdaman@gmail.com"
-home-page = "https://github.com/timdaman/check_docker"
-description-file = "README.rst"
-requires-python=">3"
+[tool.poetry]
+name = "check_docker"
+version = "2.1.0"
+description = "Nagios/NRPE compatible plugins for checking Docker based services"
+license = "GPL-3.0"
+authors = ["Tim Laurence <timdaman@gmail.com>"]
+readme = "README.rst"
+homepage = "https://github.com/timdaman/check_docker"
+repository = "https://github.com/timdaman/check_docker"
+
 classifiers=[
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
@@ -18,7 +21,13 @@ classifiers=[
     "Operating System :: OS Independent",
     "Topic :: System :: Networking",
 ]
+packages = [
+    { include = "check_docker" },
+]
 
-[tool.flit.scripts]
+[tool.poetry.scripts]
 check_docker = "check_docker.check_docker:main"
 check_swarm = "check_docker.check_swarm:main"
+
+
+

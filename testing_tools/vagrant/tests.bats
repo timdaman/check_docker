@@ -6,7 +6,8 @@ then
     exit 1
 fi
 
-NEWEST_PACKAGE="$(ls -t /check_docker/dist/check_docker-* | head -1)"
+NEWEST_SDIST="$(ls -t /check_docker/dist/check_docker-*.tar.gz | head -1)"
+NEWEST_WHEEL="$(ls -t /check_docker/dist/check_docker-*.whl | head -1)"
 
 teardown()
 {
@@ -37,10 +38,23 @@ load bats_fixtures
     pip3 list 2>&1 | grep -ve check-docker
 }
 
-@test "Confirm package, $NEWEST_PACKAGE, is installable" {
+@test "Confirm source package, $NEWEST_SDIST, is installable" {
 
-    NEWEST_PACKAGE="$(ls -t /check_docker/dist/check_docker-* | head -1)"
-    run sudo pip3 install "$NEWEST_PACKAGE"
+    run sudo pip3 install "$NEWEST_SDIST"
+    [ "$status" -eq 0 ]
+}
+
+@test "Re-Confirm 'check-docker' is not installed" {
+
+    # This should never error since the previous step ensures package is already present
+    sudo pip3 uninstall -y check-docker
+    # Before we start make sure check_docker is not present
+    pip3 list 2>&1 | grep -ve check-docker
+}
+
+@test "Confirm wheel package, $NEWEST_WHEEL, is installable" {
+
+    run sudo pip3 install "$NEWEST_WHEEL"
     [ "$status" -eq 0 ]
 }
 

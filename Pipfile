@@ -12,7 +12,7 @@ pytest-random-order = '*'
 coverage = '*'
 pyfakefs = '*'
 pytest-cov = '*'
-flit = '*'
+
 
 [requires]
 python_version = "3.7"

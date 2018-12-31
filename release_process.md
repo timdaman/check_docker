@@ -9,7 +9,7 @@
 
 1. make package
 
-        pipenv run flit build --format sdist
+        poetry build
 
 1. Uninstall check_docker and install package
 
@@ -27,7 +27,7 @@
 1. CodeClimate does not show scary issues (need to modify analyzed branch)
 1. Upload package to test repo
 
-        pipenv run flit publish --format sdist
+       poetry publish -r pypi -u timdaman -p xxxx
 
 1. Check test project page for formatting
 
@@ -35,7 +35,7 @@
 
 1. Upload package to prod repo
 
-        pipenv run flit publish --repository  prodpypi  --format sdist
+        poetry publish -r prodpypi -u timdaman -p xxxx
 
 1. Check project page for formatting
 
