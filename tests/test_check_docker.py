@@ -420,6 +420,28 @@ def test_check_uptime1(check_docker, uptime, warn, crit, expected_status):
         assert check_docker.rc == expected_status
 
 
+@pytest.mark.parametrize("image_age, warn, crit, expected_status", (
+        (timedelta(days=20), 10, 20, cd.CRITICAL_RC),
+        (timedelta(days=15), 10, 20, cd.WARNING_RC),
+        (timedelta(days=5), 10, 20, cd.OK_RC),
+))
+def test_check_image_age(check_docker, image_age, warn, crit, expected_status):
+    time = datetime.now(tz=timezone.utc) - image_age
+    time_str = time.strftime("%Y-%m-%dT%H:%M:%S.0000000000Z")
+    container_response = {'Image': 'test'}
+    image_response = {'Created': time_str}
+
+    def mock_response(*args, **kwargs):
+        encoded = json.dumps(obj=image_response).encode('utf-8')
+        return FakeHttpResponse(encoded, 200)
+
+    with patch('check_docker.check_docker.get_container_info', return_value=container_response), \
+         patch('check_docker.check_docker.get_image_info', return_value=image_response):
+        thresholds = cd.ThresholdSpec(warn=warn, crit=crit, units='')
+        check_docker.check_image_age(container='container', thresholds=thresholds)
+        assert check_docker.rc == expected_status
+
+
 sample_containers = [
     {'Names': ['/name1']},
     {'Names': ['/name2']}]
