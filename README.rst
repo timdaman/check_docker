@@ -30,7 +30,7 @@ With **check_swarm** you can alert
 These checks can communicate with a local docker daemon socket file (default) or with local
 or remote docker daemons using secure and non-secure TCP connections.
 
-These plugins require python 3. It is tested on 3.4 and greater but may work on older
+These plugins require python 3. It is tested on 3.5 and greater but may work on older
 versions of 3.
 
 Installation

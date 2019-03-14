@@ -4,7 +4,6 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [packages]
-detox = '*'
 tox = '*'
 tox-pyenv = '*'
 pytest = '*'

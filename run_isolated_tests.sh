@@ -3,4 +3,4 @@ set -eu
 
 (cd testing_tools && docker build -t check_docker_tests .)
 
-docker run --rm -v $PWD:$PWD -w $PWD -ti check_docker_tests detox
+docker run --rm -v $PWD:$PWD -w $PWD -ti check_docker_tests tox --parallel auto
