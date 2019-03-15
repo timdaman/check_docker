@@ -71,7 +71,7 @@ check_docker Usage
                          [--containers CONTAINERS [CONTAINERS ...]] [--present]
                          [--threads THREADS] [--cpu WARN:CRIT]
                          [--memory WARN:CRIT:UNITS] [--status STATUS] [--health]
-                         [--uptime WARN:CRIT] [--version]
+                         [--uptime WARN:CRIT] [--image-age WARN:CRIT] [--version]
                          [--insecure-registries INSECURE_REGISTRIES [INSECURE_REGISTRIES ...]]
                          [--restarts WARN:CRIT] [-V]
 

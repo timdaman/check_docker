@@ -4,7 +4,7 @@ ENV PYENV_ROOT="/pyenv"
 ENV PATH="$PYENV_ROOT/bin:$PATH"
 WORKDIR /
 RUN apt update
-RUN apt install --no-install-recommends --fix-missing -y build-essential make locales libssl1.0.0 libssl1.1 libssl-dev \
+RUN apt install --no-install-recommends --fix-missing -y build-essential make locales libssl1.1 libssl-dev \
     libffi-dev libbz2-dev libreadline-dev libsqlite3-dev libjpeg-dev zlib1g-dev libxml2-dev libxslt1-dev \
     curl ca-certificates
 RUN curl -kL https://github.com/pyenv/pyenv/archive/master.tar.gz | tar -xz \
