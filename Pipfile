@@ -8,9 +8,9 @@ tox = '*'
 tox-pyenv = '*'
 pytest = '*'
 pytest-random-order = '*'
-coverage = '*'
+coverage = '>4.0,<4.4'
 pyfakefs = '*'
-pytest-cov = '*'
+pytest-cov = '<2.6'
 
 
 [requires]
