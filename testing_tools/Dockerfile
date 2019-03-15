@@ -10,9 +10,7 @@ RUN apt install --no-install-recommends --fix-missing -y build-essential make lo
 RUN curl -kL https://github.com/pyenv/pyenv/archive/master.tar.gz | tar -xz \
     && mv pyenv-master /pyenv
 RUN echo 3.5.6 3.6.7 3.7.1 | xargs -n 1 -P $(nproc) pyenv install
-RUN apt install --no-install-recommends --fix-missing -y libssl1.0-dev
-RUN pyenv install 3.4.9
-RUN /pyenv/versions/3.7.1/bin/pip3.7 install setuptools wheel flit detox
+RUN /pyenv/versions/3.7.1/bin/pip3.7 install setuptools wheel flit tox
 
 FROM ubuntu:18.04
 SHELL ["/bin/bash", "-lc"]
@@ -26,7 +24,8 @@ COPY --from=build /pyenv /pyenv
 ENV PYENV_ROOT="/pyenv"
 RUN echo 'PATH="/pyenv/bin:$PATH"' >> /etc/profile.d/02-pyenv.sh
 RUN echo 'eval "$(pyenv init -)"' >> /etc/profile.d/02-pyenv.sh
-RUN echo 'pyenv global 3.4.9 3.5.6 3.6.7 3.7.1' >> /etc/profile.d/02-pyenv.sh
+RUN echo 'pyenv global 3.5.6 3.6.7 3.7.1' >> /etc/profile.d/02-pyenv.sh
 # These are needed for some tests
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
+ENV isolated=true

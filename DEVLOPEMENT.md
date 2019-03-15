@@ -17,7 +17,7 @@ Initialize your pipenv
 tox and Pytest is used for testing. You can can run test by running the following from
 the root of the project
 
-    detox
+    tox
 
 ## Isolated tests
 Sometimes test cases can interact with Docker on the development machine making

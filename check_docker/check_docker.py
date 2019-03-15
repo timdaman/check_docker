@@ -26,7 +26,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2018"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 '''
 nrpe compatible check for docker containers.
@@ -594,6 +594,22 @@ def check_uptime(container, thresholds):
 
 
 @multithread_execution()
+def check_image_age(container, thresholds):
+    container_image = get_container_info(container)['Image']
+    image_created = get_image_info(container_image)['Created']
+    only_secs = image_created[0:19]
+    start = datetime.strptime(only_secs, "%Y-%m-%dT%H:%M:%S")
+    start = start.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    image_age = (now - start).days
+
+    graph_padding = 2
+    thresholds.units = 'd'
+    evaluate_numeric_thresholds(container=container, value=image_age, thresholds=thresholds, name='image_age',
+                                short_name='age', min=0, max=graph_padding, greater_than=True)
+
+
+@multithread_execution()
 @require_running('restarts')
 def check_restarts(container, thresholds):
     inspection = get_container_info(container)
@@ -799,6 +815,14 @@ def process_args(args):
                         metavar='WARN:CRIT',
                         help='Minimum container uptime in seconds. Use when infrequent crashes are tolerated.')
 
+    # Image Age
+    parser.add_argument('--image-age',
+                        dest='image_age',
+                        action='store',
+                        type=str,
+                        metavar='WARN:CRIT',
+                        help='Maximum image age in days.')
+
     # Version
     parser.add_argument('--version',
                         dest='version',
@@ -961,6 +985,10 @@ def perform_checks(raw_args):
         # Check uptime
         if args.uptime:
             check_uptime(container, parse_thresholds(args.uptime, include_units=False))
+
+        # Check image age
+        if args.image_age:
+            check_image_age(container, parse_thresholds(args.image_age, include_units=False))
 
         # Check restart count
         if args.restarts:

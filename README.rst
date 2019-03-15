@@ -21,6 +21,7 @@ With **check_docker** can use it to check and alert on
 -  uptime, i.e. is it able to stay running for a long enough time?
 -  the presence of a container or containers matching specified names
 -  image version, does the running image match that in the remote registry?
+-  image age, when was the image built the last time?
 
 With **check_swarm** you can alert
 
@@ -30,7 +31,7 @@ With **check_swarm** you can alert
 These checks can communicate with a local docker daemon socket file (default) or with local
 or remote docker daemons using secure and non-secure TCP connections.
 
-These plugins require python 3. It is tested on 3.4 and greater but may work on older
+These plugins require python 3. It is tested on 3.5 and greater but may work on older
 versions of 3.
 
 Installation
@@ -105,6 +106,7 @@ check_docker Usage
     --health              Check container's health check status
     --uptime WARN:CRIT    Minimum container uptime in seconds. Use when
                           infrequent crashes are tolerated.
+    --image-age WARN:CRIT Maximum image age in days.
     --version             Check if the running images are the same version as
                           those in the registry. Useful for finding stale
                           images. Does not support login.
