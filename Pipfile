@@ -11,7 +11,7 @@ pytest-random-order = '*'
 coverage = '>4.0,<4.4'
 pyfakefs = '*'
 pytest-cov = '<2.6'
-
+poetry = "*"
 
 [requires]
 python_version = "3.7"

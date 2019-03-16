@@ -9,11 +9,11 @@
 
 1. make package
 
-        poetry build
+        pipenv run poetry build
 
 1. Uninstall check_docker and install package
 
-        pipenv uninstall check_docker && pipenv run flit install --format sdist
+        pipenv uninstall check_docker && pipenv run pip install dist/check_docker-X.X.X-py2.py3-none-any.whl
 
 1. Bats smoke tests pass
 

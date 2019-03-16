@@ -1,9 +1,8 @@
 
-if [ ! -f /etc/alpine-release ]
+if ! id vagrant
 then
     echo "This is only intended to be run inside a vagrant box!" >&2
     echo "Running it outside may result in data loss" >&2
-    exit 1
 fi
 
 NEWEST_SDIST="$(ls -t /check_docker/dist/check_docker-*.tar.gz | head -1)"
@@ -169,16 +168,14 @@ load bats_fixtures
 
 }
 
-SITE_PACKAGES_DIR=/usr/lib/python3.6/site-packages/check_docker
+SITE_PACKAGES_DIR=/$(pip3 show check_docker | grep '^Location' | cut -d ' '  -f 2)/check_docker
 @test "Can check_docker be run when called directly" {
-    good_container
 
     run python3 $SITE_PACKAGES_DIR/check_docker.py --help
     [ "$status" -eq 0 ]
 }
 
 @test "Can check_swarm be run when called directly" {
-    good_container
 
     run python3 $SITE_PACKAGES_DIR/check_swarm.py --help
     [ "$status" -eq 0 ]

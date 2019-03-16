@@ -12,7 +12,8 @@ Vagrant.configure("2") do |config|
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://atlas.hashicorp.com/search.
-  config.vm.box = "jpbriquet/alpine2docker"
+  config.vm.box = "geerlingguy/ubuntu1604"
+  config.vm.box_version = "1.2.5"
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
@@ -65,9 +66,12 @@ Vagrant.configure("2") do |config|
   # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
   # documentation for more information about their specific syntax and use.
   config.vm.provision "shell", inline: <<-SHELL
-    sudo apk add python3 coreutils ncurses
-    curl -L https://github.com/bats-core/bats-core/archive/master.zip | unzip -
-    sudo bash bats-core-master/install.sh /usr/local
+    apt install -y python3 curl
+    curl -s https://bootstrap.pypa.io/get-pip.py | python3
+    curl -fsSL https://test.docker.com | sh
+    usermod -a -G docker vagrant
+    curl -s -L https://github.com/bats-core/bats-core/archive/master.tar.gz | tar -xzf -
+    bash bats-core-master/install.sh /usr/local
     rm -rf ./bats-core-master
   SHELL
   # No FS share to allow any depds to the host
