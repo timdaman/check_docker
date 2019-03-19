@@ -9,14 +9,14 @@ import stat
 from functools import lru_cache
 from http.client import HTTPConnection
 from sys import argv
-from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
+from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector, ProxyHandler
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2018"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 
 '''
 nrpe compatible check for docker swarm
@@ -75,6 +75,7 @@ better_urllib_get.addheaders = DEFAULT_HEADERS.copy()
 better_urllib_get.add_handler(HTTPHandler())
 better_urllib_get.add_handler(HTTPSHandler())
 better_urllib_get.add_handler(SocketFileHandler())
+better_urllib_get.add_handler(ProxyHandler)
 
 
 # Util functions

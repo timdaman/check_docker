@@ -19,7 +19,7 @@ from http.client import HTTPConnection
 from urllib import request
 from urllib.error import HTTPError, URLError
 from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector, HTTPRedirectHandler, \
-    Request, HTTPBasicAuthHandler
+    Request, HTTPBasicAuthHandler, ProxyHandler
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
@@ -177,6 +177,7 @@ better_urllib_get.add_handler(HTTPSHandler())
 better_urllib_get.add_handler(HTTPRedirectHandler())
 better_urllib_get.add_handler(SocketFileHandler())
 better_urllib_get.add_handler(Oauth2TokenAuthHandler())
+better_urllib_get.add_handler(ProxyHandler)
 
 
 class RegistryError(Exception):
