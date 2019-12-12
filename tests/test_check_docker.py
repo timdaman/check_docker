@@ -45,6 +45,7 @@ def check_docker_fresh():
 def check_docker():
     cd.rc = -1
     check_docker.no_ok = False
+    check_docker.no_unknown = False
     check_docker.no_performance = False
     cd.timeout = 1
     cd.messages = []
@@ -720,6 +721,7 @@ def test_perform(check_docker, fs, args, called):
 def test_print_results(check_docker, capsys, messages, perf_data, expected):
     # These sometimes get set to true when using random-order plugin, for example --random-order-seed=620808
     check_docker.no_ok = False
+    check_docker.no_unknown = False
     check_docker.no_performance = False
     check_docker.messages = messages
     check_docker.performance_data = perf_data
@@ -728,7 +730,7 @@ def test_print_results(check_docker, capsys, messages, perf_data, expected):
     assert out.strip() == expected
 
 
-@pytest.mark.parametrize("messages, perf_data, no_ok, no_performance, expected", (
+@pytest.mark.parametrize("messages, perf_data, no_ok, no_unknown, no_performance, expected", (
         ([], [], False, False, ''),
         (['TEST'], [], False, False, 'TEST'),
         (['FOO', 'BAR'], [], False, False, 'FOO; BAR'),
@@ -742,10 +744,11 @@ def test_print_results(check_docker, capsys, messages, perf_data, expected):
         (['OK: TEST'], ['1;2;3;4;'], False, True, 'OK: TEST'),
         (['OK: FOO', 'OK: BAR'], ['1;2;3;4;'], True, True, 'OK'),
 ))
-def test_print_results_no_ok(check_docker, capsys, messages, perf_data, no_ok, no_performance, expected):
+def test_print_results_no_ok(check_docker, capsys, messages, perf_data, no_ok, no_unknown, no_performance, expected):
     check_docker.messages = messages
     check_docker.performance_data = perf_data
     check_docker.no_ok = no_ok
+    check_docker.no_unknown = no_unknown
     check_docker.no_performance = no_performance
     check_docker.print_results()
     out, err = capsys.readouterr()

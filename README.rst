@@ -117,6 +117,8 @@ check_docker Usage
     --restarts WARN:CRIT  Container restart thresholds.
     --no-ok               Make output terse suppressing OK messages. If all
                           checks are OK return a single OK.
+    --no-unknown          Make output terse suppressing UNKNOWN messages. If all
+                          checks are UNKNOWN return a single UNKNOWN.
     --no-performance      Suppress performance data. Reduces output when
                           performance data is not being used.
     -V                    show program's version number and exit
