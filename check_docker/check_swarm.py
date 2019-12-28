@@ -179,7 +179,7 @@ def process_global_service(name):
     online_nodes = len([node for node in node_list if node['Spec']['Availability'] != 'drain'])
 
     # Get a count of the task found running
-    num_tasks = len(get_service_running_tasks(name))
+    num_tasks = len(get_service_running_tasks(name)[0])
     if num_tasks < online_nodes:
         critical('Global service {service} tasks not found for every active and paused node'.format(service=name))
     elif num_tasks > online_nodes:
@@ -189,7 +189,7 @@ def process_global_service(name):
 
 
 def process_replicated_service(name, replicas_desired):
-    num_tasks = len(get_service_running_tasks(name))
+    num_tasks = len(get_service_running_tasks(name)[0])
     if num_tasks != replicas_desired:
         critical('Replicated service {service} has {num_tasks} tasks, {replicas_desired} desired'.
                  format(service=name, num_tasks=num_tasks, replicas_desired=replicas_desired))
