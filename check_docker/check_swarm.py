@@ -13,10 +13,10 @@ from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, Opene
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
-__copyright__ = "Copyright 2018"
+__copyright__ = "Copyright 2019"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 
 '''
 nrpe compatible check for docker swarm
@@ -103,6 +103,16 @@ def get_service_info(name):
     return get_url(daemon + '/services/{service}'.format(service=name))
 
 
+def get_service_running_tasks(name):
+    tasks, status = get_url(daemon + '/tasks?service={service}'.format(service=name))
+    running_tasks = [task for task in tasks if task['Status']['State'] == 'running']
+    return running_tasks
+
+
+def get_nodes():
+    return get_url(daemon + '/nodes')
+
+
 def get_services(names):
     services_list, status = get_url(daemon + '/services')
     if status == 406:
@@ -163,10 +173,41 @@ def check_swarm():
                        critical_msg='Node is not in a swarm', unknown_msg='Error accessing swarm info')
 
 
+def process_global_service(name):
+    # Find how many nodes should have service running. I assume 'active' and 'paused' are "online"
+    node_list, status = get_nodes()
+    online_nodes = len([node for node in node_list if node['Spec']['Availability'] != 'drain'])
+
+    # Get a count of the task found running
+    num_tasks = len(get_service_running_tasks(name))
+    if num_tasks < online_nodes:
+        critical('Global service {service} tasks not found for every active and paused node'.format(service=name))
+    elif num_tasks > online_nodes:
+        critical('Global service {service} has more tasks than the number nodes'.format(service=name))
+    else:
+        ok('Global service {service} OK'.format(service=name))
+
+
+def process_replicated_service(name, replicas_desired):
+    num_tasks = len(get_service_running_tasks(name))
+    if num_tasks != replicas_desired:
+        critical('Replicated service {service} has {num_tasks} tasks, {replicas_desired} desired'.
+                 format(service=name, num_tasks=num_tasks, replicas_desired=replicas_desired))
+    else:
+        ok('Replicated service {service} OK'.format(service=name))
+
+
 def check_service(name):
-    info, status = get_service_info(name)
-    process_url_status(status, ok_msg='Service {service} is up and running'.format(service=name),
-                       critical_msg='Service {service} was not found on the swarm'.format(service=name))
+    # get service mode
+    service_info, status = get_service_info(name)
+    mode_info = service_info['Spec']['Mode']
+
+    # if global ensure one per node
+    if 'Global' in mode_info:
+        process_global_service(name)
+    # if replicated ensure sufficient number of replicas
+    elif 'Replicated' in mode_info:
+        process_replicated_service(name, mode_info['Replicated']['Replicas'])
 
 
 def process_url_status(status, ok_msg=None, critical_msg=None, unknown_msg=None):

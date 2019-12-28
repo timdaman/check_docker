@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 # logging.basicConfig(level=logging.DEBUG)
-import math
-from collections import deque, namedtuple, UserDict, defaultdict
-from sys import argv
-
 import argparse
 import json
 import logging
+import math
 import os
 import re
 import socket
 import stat
 import traceback
+from collections import deque, namedtuple, UserDict, defaultdict
 from concurrent import futures
 from datetime import datetime, timezone
 from functools import lru_cache
 from http.client import HTTPConnection
+from sys import argv
 from urllib import request
 from urllib.error import HTTPError, URLError
 from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector, HTTPRedirectHandler, \
@@ -23,10 +22,10 @@ from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, Opene
 
 logger = logging.getLogger()
 __author__ = 'Tim Laurence'
-__copyright__ = "Copyright 2018"
+__copyright__ = "Copyright 2019"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 
 '''
 nrpe compatible check for docker containers.
@@ -79,7 +78,9 @@ class ThresholdSpec(UserDict):
         super().__init__(warn=warn, crit=crit, units=units)
 
     def __getattr__(self, item):
-        return self[item]
+        if item in ('warn', 'crit', 'units'):
+            return self.data[item]
+        return super().__getattr__(item)
 
 
 # How much threading can we do? We are generally not CPU bound so I am using this a worse case cap
@@ -151,7 +152,7 @@ class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
 
     def process_oauth2(self, request, response, www_authenticate_header):
 
-        # This keep infinite auth loops from happening
+        # This keeps infinite auth loops from happening
         full_url = request.full_url
         self.auth_failure_tracker[full_url] += 1
         if self.auth_failure_tracker[full_url] > 1:

@@ -50,10 +50,11 @@ def test_get_swarm_status(check_swarm):
 
 
 def test_get_service_info(check_swarm):
-    with patch('check_docker.check_swarm.get_url', return_value=('FOO', 999)):
-        response_data, response_status = check_swarm.get_service_info('FOO')
-        assert response_data == 'FOO'
-        assert response_status == 999
+    sample_response = ([{'Status': {'State': 'running', 'DesiredState': 'running'}},
+                        {'Status': {'State': 'failed', 'DesiredState': 'running'}}], 999)
+    with patch('check_docker.check_swarm.get_url', return_value=sample_response):
+        response_data = check_swarm.get_service_running_tasks('FOO')
+        assert len(response_data) == 1
 
 
 def test_get_services_not_swarm(check_swarm):
@@ -243,13 +244,16 @@ def test_check_service_called(check_swarm, services, fs):
             assert patched.call_count == 1
 
 
-def test_check_service_results_OK(check_swarm, services, fs):
+@pytest.mark.parametrize("service_info, expected_func", (
+        ({'Spec': {'Mode': {'Global': {}}}}, 'process_global_service'),
+        ({'Spec': {'Mode': {'Replicated': {'Replicas': 1}}}}, 'process_replicated_service'),
+))
+def test_check_services_routing(check_swarm, service_info, expected_func, fs):
     fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
-    args = ['--service', 'FOO']
-    with patch('check_docker.check_swarm.get_services', return_value=['FOO', 'BAR']):
-        with patch('check_docker.check_swarm.get_service_info', return_value=(services, 200)):
-            check_swarm.perform_checks(args)
-            assert check_swarm.rc == cs.OK_RC
+    with patch('check_docker.check_swarm.get_service_info', return_value=(service_info, 999)), \
+         patch('check_docker.check_swarm.{}'.format(expected_func)) as patched:
+        check_swarm.check_service('FOO')
+        assert patched.call_count == 1
 
 
 def test_check_service_results_FAIL_missing(check_swarm, services, fs):
