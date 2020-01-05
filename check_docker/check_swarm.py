@@ -103,10 +103,9 @@ def get_service_info(name):
     return get_url(daemon + '/services/{service}'.format(service=name))
 
 
-def get_service_running_tasks(name):
+def get_service_tasks(name):
     tasks, status = get_url(daemon + '/tasks?service={service}'.format(service=name))
-    running_tasks = [task for task in tasks if task['Status']['State'] == 'running']
-    return running_tasks
+    return tasks
 
 
 def get_nodes():
@@ -127,6 +126,7 @@ def get_services(names):
         return all_services_names
 
     filtered = set()
+    not_found = []
     for matcher in names:
         found = False
         for candidate in all_services_names:
@@ -135,8 +135,9 @@ def get_services(names):
                 found = True
         # If we don't find a service that matches out regex
         if not found:
-            critical("No services match {}".format(matcher))
-
+            not_found.append(matcher)
+    if len(not_found) > 0:
+        critical("No services match {}".format(','.join(not_found)))
     return filtered
 
 
@@ -173,23 +174,40 @@ def check_swarm():
                        critical_msg='Node is not in a swarm', unknown_msg='Error accessing swarm info')
 
 
-def process_global_service(name):
-    # Find how many nodes should have service running. I assume 'active' and 'paused' are "online"
-    node_list, status = get_nodes()
-    online_nodes = len([node for node in node_list if node['Spec']['Availability'] != 'drain'])
+def process_global_service(name, ignore_paused=False):
+    bad_node_states = {'drain'}
+    if ignore_paused:
+        bad_node_states.add('paused')
 
-    # Get a count of the task found running
-    num_tasks = len(get_service_running_tasks(name)[0])
-    if num_tasks < online_nodes:
-        critical('Global service {service} tasks not found for every active and paused node'.format(service=name))
-    elif num_tasks > online_nodes:
-        critical('Global service {service} has more tasks than the number nodes'.format(service=name))
-    else:
-        ok('Global service {service} OK'.format(service=name))
+    # Get all the nodes we care about based on their state
+    node_list, status = get_nodes()
+    node_index = set()
+    for node in node_list:
+        if node['Spec']['Availability'] in bad_node_states:
+            continue
+        node_index.add(node['ID'])
+
+    # If a task is on a targeted node confirm it is running
+    # Services that are not running are considered bad. This is to prevent services in crash loops from being ignored
+    # Also note, this ignores conditions where services state they are running on a node not in the index.
+    service_tasks, _ = get_service_tasks(name)
+    for task in service_tasks:
+        if task['Status']['State'] != 'running':
+            critical('Global service {service} has one or more tasks not running'.format(service=name))
+            return
+        node_index.discard(task['NodeID'])
+
+    if len(node_index) > 0:
+        critical('Global service {service} has {count} tasks not running'.format(service=name, count=len(node_list)))
+
+    ok('Global service {service} OK'.format(service=name))
 
 
 def process_replicated_service(name, replicas_desired):
-    num_tasks = len(get_service_running_tasks(name)[0])
+    # Services that are not running are considered bad. This is to prevent services in crash loops from being ignored
+    all_tasks = get_service_tasks(name)
+    running_tasks = [task for task in all_tasks if task['Status']['State'] == 'running']
+    num_tasks = len(running_tasks)
     if num_tasks != replicas_desired:
         critical('Replicated service {service} has {num_tasks} tasks, {replicas_desired} desired'.
                  format(service=name, num_tasks=num_tasks, replicas_desired=replicas_desired))
@@ -197,17 +215,17 @@ def process_replicated_service(name, replicas_desired):
         ok('Replicated service {service} OK'.format(service=name))
 
 
-def check_service(name):
+def check_service(name, ignored_paused=False):
     # get service mode
     service_info, status = get_service_info(name)
     mode_info = service_info['Spec']['Mode']
 
     # if global ensure one per node
     if 'Global' in mode_info:
-        process_global_service(name)
+        process_global_service(name=name, ignore_paused=ignored_paused)
     # if replicated ensure sufficient number of replicas
     elif 'Replicated' in mode_info:
-        process_replicated_service(name, mode_info['Replicated']['Replicas'])
+        process_replicated_service(name=name, replicas_desired=mode_info['Replicated']['Replicas'])
 
 
 def process_url_status(status, ok_msg=None, critical_msg=None, unknown_msg=None):
@@ -265,6 +283,11 @@ def process_args(args):
                              default=[],
                              help='One or more RegEx that match the names of the services(s) to check.')
 
+    swarm_group.add_argument('--ignore_paused',
+                             dest='ignore_paused',
+                             action='store_true',
+                             help="Don't require global services to be running on paused nodes")
+
     parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
 
     if len(args) == 0:
@@ -318,9 +341,9 @@ def perform_checks(raw_args):
             elif args.service:
                 services = get_services(args.service)
 
-                if len(services) > 0:  # Status is set to critical by get_services() if nothing is found for a name
-                    for service in services:
-                        check_service(service)
+                # Status is set to critical by get_services() if nothing is found for a name
+                for service in services:
+                    check_service(service, ignore_paused=args.ignore_paused)
 
         except Exception as e:
             unknown("Exception raised during check: {}".format(repr(e)))
