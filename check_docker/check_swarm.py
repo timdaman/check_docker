@@ -104,7 +104,7 @@ def get_service_info(name):
 
 
 def get_service_tasks(name):
-    tasks, status = get_url(daemon + '/tasks?service={service}'.format(service=name))
+    tasks, status = get_url(daemon + '/tasks?filters={{"name":{{"{service}":true}}}}'.format(service=name))
     return tasks
 
 
@@ -215,14 +215,14 @@ def process_replicated_service(name, replicas_desired):
         ok('Replicated service {service} OK'.format(service=name))
 
 
-def check_service(name, ignored_paused=False):
+def check_service(name, ignore_paused=False):
     # get service mode
     service_info, status = get_service_info(name)
     mode_info = service_info['Spec']['Mode']
 
     # if global ensure one per node
     if 'Global' in mode_info:
-        process_global_service(name=name, ignore_paused=ignored_paused)
+        process_global_service(name=name, ignore_paused=ignore_paused)
     # if replicated ensure sufficient number of replicas
     elif 'Replicated' in mode_info:
         process_replicated_service(name=name, replicas_desired=mode_info['Replicated']['Replicas'])
@@ -343,7 +343,7 @@ def perform_checks(raw_args):
 
                 # Status is set to critical by get_services() if nothing is found for a name
                 for service in services:
-                    check_service(service, ignore_paused=args.ignore_paused)
+                    check_service(name=service, ignore_paused=args.ignore_paused)
 
         except Exception as e:
             unknown("Exception raised during check: {}".format(repr(e)))

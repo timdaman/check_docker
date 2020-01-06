@@ -17,6 +17,24 @@ teardown()
         docker stop -t 0 $(docker ps -aq)
         docker rm -f $(docker ps -aq)
     fi
+    STACKS=$(docker stack ls)
+    if grep -q TEST_STACK <<<"$STACKS"
+    then
+        docker stack rm TEST_STACK
+        TEST_CONTAINERS_COUNT=$(docker ps | grep TEST_STACK | wc -l)
+        while [ $TEST_CONTAINERS_COUNT -ne 0 ]
+        do
+            sleep 1
+            TEST_CONTAINERS_COUNT=$(docker ps | grep TEST_STACK | wc -l)
+        done
+
+        TEST_NETWORK_COUNT=$(docker network ls | grep TEST_STACK | wc -l)
+        while [ $TEST_NETWORK_COUNT -ne 0 ]
+        do
+            sleep 1
+            TEST_NETWORK_COUNT=$(docker network ls | grep TEST_STACK | wc -l)
+        done
+    fi
 }
 
 
@@ -105,8 +123,9 @@ load bats_fixtures
 }
 
 @test "Current version" {
+    docker pull busybox
     current_container
-    run check_docker --container current_container --version
+    run current_container --version
     echo "$status"
     echo $output
     [ "$status" -eq 0 ]
@@ -180,4 +199,81 @@ SITE_PACKAGES_DIR=/$(pip3 show check_docker | grep '^Location' | cut -d ' '  -f 
     run python3 $SITE_PACKAGES_DIR/check_swarm.py --help
     [ "$status" -eq 0 ]
 
+}
+
+@test "Confirm replicated service failures are noticed" {
+  cat <<END | docker stack deploy -c - TEST_STACK
+version: "3"
+services:
+  test:
+    image: busybox
+    command: "false"
+    deploy:
+      mode: replicated
+      replicas: 2
+END
+
+    sleep 1
+    run check_swarm --service TEST_STACK
+    [ "$status" -eq 2 ]
+}
+
+@test "Confirm global service failures are noticed" {
+cat <<END | docker stack deploy -c - TEST_STACK
+version: "3"
+services:
+  test:
+    image: busybox
+    command: "false"
+    deploy:
+      mode: global
+END
+    sleep 1
+
+    run check_swarm --service TEST_STACK
+    [ "$status" -eq 2 ]
+
+}
+
+@test "Confirm global service succeed" {
+  cat <<END | docker stack deploy -c - TEST_STACK
+version: "3"
+services:
+  test:
+    image: busybox
+    command: sleep 100
+    deploy:
+      mode: replicated
+      replicas: 2
+END
+    sleep 5
+
+    run check_swarm --service TEST_STACK_test
+    echo $OUTPUT
+    [ "$status" -eq 0 ]
+}
+
+@test "Confirm replicated service succeed" {
+    echo BEFORE
+    docker ps
+    docker network ls
+  cat <<END | docker stack deploy -c - TEST_STACK
+version: "3"
+services:
+  test:
+    image: busybox
+    command: sleep 100
+    deploy:
+      mode: replicated
+      replicas: 2
+END
+    sleep 5
+
+    echo AFTER
+    docker ps -a
+    docker network ls
+    docker service ls
+    run check_swarm --service TEST_STACK_test
+    echo $output
+    [ "$status" -eq 0 ]
 }

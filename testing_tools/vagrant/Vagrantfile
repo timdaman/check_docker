@@ -68,11 +68,12 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", inline: <<-SHELL
     apt install -y python3 curl
     curl -s https://bootstrap.pypa.io/get-pip.py | python3
-    curl -fsSL https://test.docker.com | sh
+    curl -fsSL https://get.docker.com | sh
     usermod -a -G docker vagrant
     curl -s -L https://github.com/bats-core/bats-core/archive/master.tar.gz | tar -xzf -
     bash bats-core-master/install.sh /usr/local
     rm -rf ./bats-core-master
+    docker swarm init
   SHELL
   # No FS share to allow any depds to the host
   config.vm.synced_folder "../../", "/check_docker", disabled: false, mount_options: ["ro"]
