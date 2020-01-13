@@ -27,7 +27,8 @@ def test_project_version_matches():
 
 @pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
                     reason="Can not reach Python packge index when isolated")
-@pytest.mark.skipif(sys.version_info[0:2] != (3, 8), reason=f"Only check on python 3.8, not {sys.version_info[0:1]}")
+@pytest.mark.skipif(sys.version_info[0:2] != (3, 8), reason="Only check on python 3.8, not {}".
+                    format(sys.version_info[0:2]))
 def test_package_present():
     req = request.Request("https://pypi.org/project/check_docker/", method="HEAD")
     with request.urlopen(req) as resp:
