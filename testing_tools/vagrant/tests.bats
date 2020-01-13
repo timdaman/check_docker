@@ -17,6 +17,24 @@ teardown()
         docker stop -t 0 $(docker ps -aq)
         docker rm -f $(docker ps -aq)
     fi
+    STACKS=$(docker stack ls)
+    if grep -q TEST_STACK <<<"$STACKS"
+    then
+        docker stack rm TEST_STACK
+        TEST_CONTAINERS_COUNT=$(docker ps | grep TEST_STACK | wc -l)
+        while [ $TEST_CONTAINERS_COUNT -ne 0 ]
+        do
+            sleep 1
+            TEST_CONTAINERS_COUNT=$(docker ps | grep TEST_STACK | wc -l)
+        done
+
+        TEST_NETWORK_COUNT=$(docker network ls | grep TEST_STACK | wc -l)
+        while [ $TEST_NETWORK_COUNT -ne 0 ]
+        do
+            sleep 1
+            TEST_NETWORK_COUNT=$(docker network ls | grep TEST_STACK | wc -l)
+        done
+    fi
 }
 
 
@@ -26,7 +44,7 @@ load bats_fixtures
 @test "Confirm check_docker is not in path" {
 
     # Before we start make sure check_docker is not present
-    sudo pip3 uninstall -y check-docker || true
+    sudo -H pip3.8 uninstall -y check-docker || true
     run which check_docker
     [ "$status" -eq 1 ]
 }
@@ -34,26 +52,26 @@ load bats_fixtures
 @test "Confirm 'check-docker' is not installed" {
 
     # Before we start make sure check_docker is not present
-    pip3 list 2>&1 | grep -ve check-docker
+    pip3.8 list 2>&1 | grep -ve check-docker
 }
 
 @test "Confirm source package, $NEWEST_SDIST, is installable" {
-
-    run sudo pip3 install "$NEWEST_SDIST"
+    echo pip3.8 install "$NEWEST_SDIST"
+    run sudo -H pip3.8 install "$NEWEST_SDIST"
     [ "$status" -eq 0 ]
 }
 
 @test "Re-Confirm 'check-docker' is not installed" {
 
     # This should never error since the previous step ensures package is already present
-    sudo pip3 uninstall -y check-docker
+    sudo -H pip3.8 uninstall -y check-docker
     # Before we start make sure check_docker is not present
-    pip3 list 2>&1 | grep -ve check-docker
+    pip3.8 list 2>&1 | grep -ve check-docker
 }
 
 @test "Confirm wheel package, $NEWEST_WHEEL, is installable" {
 
-    run sudo pip3 install "$NEWEST_WHEEL"
+    run sudo -H pip3.8 install "$NEWEST_WHEEL"
     [ "$status" -eq 0 ]
 }
 
@@ -63,7 +81,7 @@ load bats_fixtures
 }
 
 @test "Confirm package is installed" {
-    pip3 list |  grep 'check-docker'
+    pip3.8 list |  grep 'check-docker'
 }
 
 # It is normal for this to fail when preparing for a PR.
@@ -75,14 +93,14 @@ load bats_fixtures
 
 @test "Confirm check_docker version matches package" {
     PACKAGE_VERSION=$(get_check_docker_version)
-    CHECK_VERSION=$(python3 -c 'from check_docker import check_docker; print(check_docker.__version__)')
+    CHECK_VERSION=$(python3.8 -c 'from check_docker import check_docker; print(check_docker.__version__)')
 
     [ "$PACKAGE_VERSION" == "$CHECK_VERSION" ]
 }
 
 @test "Confirm check_swarm version matches package" {
     PACKAGE_VERSION=$(get_check_docker_version)
-    CHECK_VERSION=$(python3 -c 'from check_docker import check_swarm; print(check_swarm.__version__)')
+    CHECK_VERSION=$(python3.8 -c 'from check_docker import check_swarm; print(check_swarm.__version__)')
 
     [ "$PACKAGE_VERSION" == "$CHECK_VERSION" ]
 }
@@ -105,6 +123,7 @@ load bats_fixtures
 }
 
 @test "Current version" {
+    docker pull busybox
     current_container
     run check_docker --container current_container --version
     echo "$status"
@@ -168,16 +187,93 @@ load bats_fixtures
 
 }
 
-SITE_PACKAGES_DIR=/$(pip3 show check_docker | grep '^Location' | cut -d ' '  -f 2)/check_docker
+SITE_PACKAGES_DIR=/$(pip3.8 show check_docker | grep '^Location' | cut -d ' '  -f 2)/check_docker
 @test "Can check_docker be run when called directly" {
 
-    run python3 $SITE_PACKAGES_DIR/check_docker.py --help
+    run python3.8 $SITE_PACKAGES_DIR/check_docker.py --help
     [ "$status" -eq 0 ]
 }
 
 @test "Can check_swarm be run when called directly" {
 
-    run python3 $SITE_PACKAGES_DIR/check_swarm.py --help
+    run python3.8 $SITE_PACKAGES_DIR/check_swarm.py --help
     [ "$status" -eq 0 ]
 
+}
+
+@test "Confirm replicated service failures are noticed" {
+  cat <<END | docker stack deploy -c - TEST_STACK
+version: "3"
+services:
+  test:
+    image: busybox
+    command: "false"
+    deploy:
+      mode: replicated
+      replicas: 2
+END
+
+    sleep 1
+    run check_swarm --service TEST_STACK
+    [ "$status" -eq 2 ]
+}
+
+@test "Confirm global service failures are noticed" {
+cat <<END | docker stack deploy -c - TEST_STACK
+version: "3"
+services:
+  test:
+    image: busybox
+    command: "false"
+    deploy:
+      mode: global
+END
+    sleep 1
+
+    run check_swarm --service TEST_STACK
+    [ "$status" -eq 2 ]
+
+}
+
+@test "Confirm global service succeed" {
+  cat <<END | docker stack deploy -c - TEST_STACK
+version: "3"
+services:
+  test:
+    image: busybox
+    command: sleep 100
+    deploy:
+      mode: replicated
+      replicas: 2
+END
+    sleep 5
+
+    run check_swarm --service TEST_STACK_test
+    echo $OUTPUT
+    [ "$status" -eq 0 ]
+}
+
+@test "Confirm replicated service succeed" {
+    echo BEFORE
+    docker ps
+    docker network ls
+  cat <<END | docker stack deploy -c - TEST_STACK
+version: "3"
+services:
+  test:
+    image: busybox
+    command: sleep 100
+    deploy:
+      mode: replicated
+      replicas: 2
+END
+    sleep 5
+
+    echo AFTER
+    docker ps -a
+    docker network ls
+    docker service ls
+    run check_swarm --service TEST_STACK_test
+    echo $output
+    [ "$status" -eq 0 ]
 }

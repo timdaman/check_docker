@@ -1,7 +1,6 @@
-from collections import defaultdict
-
 import json
 import stat
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 
 try:
@@ -51,7 +50,6 @@ def check_docker():
     cd.performance_data = []
     cd.daemon = 'socket:///notreal'
     cd.get_url.cache_clear()
-    cd.head_url.cache_clear()
     cd.DISABLE_THREADING = True
     cd.Oauth2TokenAuthHandler.auth_failure_tracker = defaultdict(int)
 
@@ -82,36 +80,27 @@ def test_get_url(check_docker):
         assert response == obj
 
 
-def test_head_url(check_docker):
-    mock_response = FakeHttpResponse(content=b'', http_code=200, method='HEAD', headers={'test': 'test_value'})
-
-    def mock_open(*args, **kwargs):
-        return mock_response
-
-    with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=mock_open):
-        response = check_docker.head_url(url='https://example.com/test')
-        assert response.getheader('test', None) == 'test_value'
-
-
-def test_head_url_with_oauth2(check_docker):
+def test_get_url_with_oauth2(check_docker):
     headers1 = {
         'www-authenticate': 'Bearer realm="https://docker-auth.example.com/auth",service="token-service",scope="repository:something/something_else:pull"'}
-    mock_response1 = FakeHttpResponse(method='HEAD', http_code=401, headers=headers1)
+    mock_response1 = FakeHttpResponse(method='GET', content=b'', http_code=401,
+                                      headers=headers1)
 
-    mock_response2 = FakeHttpResponse(method='HEAD', http_code=200, headers={'test': 'test'})
+    mock_response2 = FakeHttpResponse(method='GET', content=b'{"test_key":"test_value"}', http_code=200,
+                                      headers={'test': 'test'})
 
     with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=[mock_response1, mock_response2]), \
          patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_outh2_token',
                return_value='test_token') as get_token:
-        response = check_docker.head_url(url='https://example.com/test')
-        assert response == mock_response2
+        response = check_docker.get_url(url='https://example.com/test')
+        assert response == ({"test_key": "test_value"}, 200)
         assert get_token.call_count == 1
 
 
-def test_head_url_with_oauth2_loop(check_docker):
+def test_get_url_with_oauth2_loop(check_docker):
     headers = {
         'www-authenticate': 'Bearer realm="https://docker-auth.example.com/auth",service="token-service",scope="repository:something/something_else:pull"'}
-    mock_response = FakeHttpResponse(method='HEAD', http_code=401, headers=headers)
+    mock_response = FakeHttpResponse(method='GET', http_code=401, headers=headers)
 
     def mock_open(*args, **kwargs):
         return mock_response
@@ -120,14 +109,14 @@ def test_head_url_with_oauth2_loop(check_docker):
          patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_outh2_token',
                return_value='test_token') as get_token:
         with pytest.raises(HTTPError):
-            check_docker.head_url(url='https://example.com/test')
+            check_docker.get_url(url='https://example.com/test')
 
 
-def test_head_url_500(check_docker):
+def test_get_url_500(check_docker):
     expected_exception = HTTPError(code=500, fp=None, url='url', msg='msg', hdrs=[])
     with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=expected_exception), \
          pytest.raises(HTTPError):
-        check_docker.head_url(url='https://example.com/test')
+        check_docker.get_url(url='https://example.com/test')
 
 
 @pytest.mark.parametrize("func", [
@@ -866,44 +855,36 @@ def test_normalize_image_name_to_manifest_url(check_docker, image_url, expected_
     assert normal_url == expected_normal_url
 
 
-@pytest.mark.parametrize('image_response, expected_digest', (
-        ({'RepoDigests': []}, None),
-        ({'RepoDigests': ['name@AAAAAA']}, 'AAAAAA'),
-))
-def test_get_container_digest(check_docker, image_response, expected_digest):
+def test_get_container_image_id(check_docker):
     container_response = {'Image': 'test'}
-    with patch('check_docker.check_docker.get_container_info', return_value=container_response), \
-         patch('check_docker.check_docker.get_image_info', return_value=image_response):
-        digest = check_docker.get_container_digest('container')
-        assert digest == expected_digest
+    with patch('check_docker.check_docker.get_container_info', return_value=container_response):
+        digest = check_docker.get_container_image_id('container')
+        assert digest == 'test'
 
 
 def test_get_digest_from_registry_no_auth(check_docker):
-    response = FakeHttpResponse(content=b"", http_code=200, headers={'Docker-Content-Digest': "test_token"})
-
-    with patch('check_docker.check_docker.head_url', return_value=response):
+    fake_data = {'config': {'digest': 'test_token'}}
+    with patch('check_docker.check_docker.get_url', return_value=(fake_data, 200)):
         digest = check_docker.get_digest_from_registry('https://example.com/v2/test/manifests/lastest')
         assert digest == "test_token"
 
 
 def test_get_digest_from_registry_missing_digest(check_docker):
-    response = FakeHttpResponse(content=b"", http_code=401, headers={
-        'Www-Authenticate': 'Bearer realm="https://example.com/token",service="example.com",scope="repository:test:pull"'})
-
-    with patch('check_docker.check_docker.head_url', return_value=response):
+    with patch('check_docker.check_docker.get_url', return_value=({},404)):
         with pytest.raises(check_docker.RegistryError):
             check_docker.get_digest_from_registry('https://example.com/v2/test/manifests/lastest')
 
 
-@pytest.mark.parametrize('local_container_digest,registry_container_digest, image_urls, expected_rc', (
+@pytest.mark.parametrize('local_container_container_image_id,registry_container_digest, image_urls, expected_rc', (
         ('AAAA', 'AAAA', ('example.com/foo',), cd.OK_RC),
         ('AAAA', 'BBBB', ('example.com/foo',), cd.CRITICAL_RC),
         (None, '', ('example.com/foo',), cd.UNKNOWN_RC),
         ('AAAA', 'AAAA', ('example.com/foo', 'example.com/bar'), cd.UNKNOWN_RC),
         ('AAAA', 'AAAA', tuple(), cd.UNKNOWN_RC),
 ))
-def test_check_version(check_docker, local_container_digest, registry_container_digest, image_urls, expected_rc):
-    with patch('check_docker.check_docker.get_container_digest', return_value=local_container_digest), \
+def test_check_version(check_docker, local_container_container_image_id, registry_container_digest, image_urls,
+                       expected_rc):
+    with patch('check_docker.check_docker.get_container_image_id', return_value=local_container_container_image_id), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=image_urls), \
          patch('check_docker.check_docker.get_digest_from_registry', return_value=registry_container_digest):
         check_docker.check_version('container', tuple())
@@ -911,7 +892,7 @@ def test_check_version(check_docker, local_container_digest, registry_container_
 
 
 def test_check_version_missing_digest(check_docker):
-    with patch('check_docker.check_docker.get_container_digest', return_value='AAA'), \
+    with patch('check_docker.check_docker.get_container_image_id', return_value='AAA'), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=('example.com/foo',)), \
          patch('check_docker.check_docker.get_digest_from_registry',
                side_effect=check_docker.RegistryError(response=None)):
@@ -924,7 +905,7 @@ def test_check_version_not_tls(check_docker):
         reason = 'UNKNOWN_PROTOCOL'
 
     exception = URLError(reason=Reason)
-    with patch('check_docker.check_docker.get_container_digest', return_value='AAA'), \
+    with patch('check_docker.check_docker.get_container_image_id', return_value='AAA'), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=('example.com/foo',)), \
          patch('check_docker.check_docker.get_digest_from_registry', side_effect=exception):
         check_docker.check_version('container', tuple())
@@ -937,7 +918,7 @@ def test_check_version_no_such_host(check_docker):
         strerror = 'nodename nor servname provided, or not known'
 
     exception = URLError(reason=Reason)
-    with patch('check_docker.check_docker.get_container_digest', return_value='AAA'), \
+    with patch('check_docker.check_docker.get_container_image_id', return_value='AAA'), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=('example.com/foo',)), \
          patch('check_docker.check_docker.get_digest_from_registry', side_effect=exception):
         check_docker.check_version('container', tuple())
@@ -948,7 +929,7 @@ def test_check_version_no_such_host(check_docker):
 def test_check_version_exception(check_docker):
     # Unhandled exceptions should be passed on
     exception = URLError(reason=None)
-    with patch('check_docker.check_docker.get_container_digest', return_value='AAA'), \
+    with patch('check_docker.check_docker.get_container_image_id', return_value='AAA'), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=('example.com/foo',)), \
          patch('check_docker.check_docker.get_digest_from_registry', side_effect=exception), \
          pytest.raises(URLError):

@@ -14,4 +14,4 @@ pytest-cov = '<2.6'
 poetry = "*"
 
 [requires]
-python_version = "3.7"
+python_version = "3.8"
