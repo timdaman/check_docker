@@ -44,7 +44,7 @@ load bats_fixtures
 @test "Confirm check_docker is not in path" {
 
     # Before we start make sure check_docker is not present
-    sudo pip3 uninstall -y check-docker || true
+    sudo -H pip3.8 uninstall -y check-docker || true
     run which check_docker
     [ "$status" -eq 1 ]
 }
@@ -52,26 +52,26 @@ load bats_fixtures
 @test "Confirm 'check-docker' is not installed" {
 
     # Before we start make sure check_docker is not present
-    pip3 list 2>&1 | grep -ve check-docker
+    pip3.8 list 2>&1 | grep -ve check-docker
 }
 
 @test "Confirm source package, $NEWEST_SDIST, is installable" {
-
-    run sudo pip3 install "$NEWEST_SDIST"
+    echo pip3.8 install "$NEWEST_SDIST"
+    run sudo -H pip3.8 install "$NEWEST_SDIST"
     [ "$status" -eq 0 ]
 }
 
 @test "Re-Confirm 'check-docker' is not installed" {
 
     # This should never error since the previous step ensures package is already present
-    sudo pip3 uninstall -y check-docker
+    sudo -H pip3.8 uninstall -y check-docker
     # Before we start make sure check_docker is not present
-    pip3 list 2>&1 | grep -ve check-docker
+    pip3.8 list 2>&1 | grep -ve check-docker
 }
 
 @test "Confirm wheel package, $NEWEST_WHEEL, is installable" {
 
-    run sudo pip3 install "$NEWEST_WHEEL"
+    run sudo -H pip3.8 install "$NEWEST_WHEEL"
     [ "$status" -eq 0 ]
 }
 
@@ -81,7 +81,7 @@ load bats_fixtures
 }
 
 @test "Confirm package is installed" {
-    pip3 list |  grep 'check-docker'
+    pip3.8 list |  grep 'check-docker'
 }
 
 # It is normal for this to fail when preparing for a PR.
@@ -93,14 +93,14 @@ load bats_fixtures
 
 @test "Confirm check_docker version matches package" {
     PACKAGE_VERSION=$(get_check_docker_version)
-    CHECK_VERSION=$(python3 -c 'from check_docker import check_docker; print(check_docker.__version__)')
+    CHECK_VERSION=$(python3.8 -c 'from check_docker import check_docker; print(check_docker.__version__)')
 
     [ "$PACKAGE_VERSION" == "$CHECK_VERSION" ]
 }
 
 @test "Confirm check_swarm version matches package" {
     PACKAGE_VERSION=$(get_check_docker_version)
-    CHECK_VERSION=$(python3 -c 'from check_docker import check_swarm; print(check_swarm.__version__)')
+    CHECK_VERSION=$(python3.8 -c 'from check_docker import check_swarm; print(check_swarm.__version__)')
 
     [ "$PACKAGE_VERSION" == "$CHECK_VERSION" ]
 }
@@ -125,7 +125,7 @@ load bats_fixtures
 @test "Current version" {
     docker pull busybox
     current_container
-    run current_container --version
+    run check_docker --container current_container --version
     echo "$status"
     echo $output
     [ "$status" -eq 0 ]
@@ -187,16 +187,16 @@ load bats_fixtures
 
 }
 
-SITE_PACKAGES_DIR=/$(pip3 show check_docker | grep '^Location' | cut -d ' '  -f 2)/check_docker
+SITE_PACKAGES_DIR=/$(pip3.8 show check_docker | grep '^Location' | cut -d ' '  -f 2)/check_docker
 @test "Can check_docker be run when called directly" {
 
-    run python3 $SITE_PACKAGES_DIR/check_docker.py --help
+    run python3.8 $SITE_PACKAGES_DIR/check_docker.py --help
     [ "$status" -eq 0 ]
 }
 
 @test "Can check_swarm be run when called directly" {
 
-    run python3 $SITE_PACKAGES_DIR/check_swarm.py --help
+    run python3.8 $SITE_PACKAGES_DIR/check_swarm.py --help
     [ "$status" -eq 0 ]
 
 }

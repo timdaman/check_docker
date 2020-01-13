@@ -293,86 +293,94 @@ def test_check_services_global_ignore_paused(check_swarm, fs):
         assert patched.call_count == 1
         assert patched.call_args == call(name='FOO', ignore_paused=True)
 
-    @pytest.mark.parametrize("service_list, ignore_paused, expected_rc", (
-            ([active_node_task, paused_node_task, drain_node_task], False, cs.OK_RC),
-            ([active_node_task, drain_node_task], False, cs.CRITICAL_RC),
-            ([active_node_task, paused_node_task], False, cs.OK_RC),
-            ([active_node_task], False, cs.CRITICAL_RC),
-            ([paused_node_task], False, cs.CRITICAL_RC),
-            ([], False, cs.CRITICAL_RC),
-            ([active_node_task], True, cs.OK_RC),
-            ([paused_node_task], True, cs.CRITICAL_RC),
-    ))
-    def test_process_global_service(check_swarm, fs, node_list, service_list, ignore_paused, expected_rc):
-        fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
-        with patch('check_docker.check_swarm.get_nodes', return_value=(node_list, 999)) as patched_get_nodes, \
-                patch('check_docker.check_swarm.get_service_tasks',
-                      return_value=(service_list, 999)) as patched_get_service_tasks:
-            check_swarm.process_global_service('FOO', ignore_paused)
-            assert patched_get_nodes.call_count == 1
-            assert patched_get_service_tasks.call_count == 1
-            assert check_swarm.rc == expected_rc
 
-    @pytest.mark.parametrize("service_list, expected_rc", (
-            ([active_node_task, paused_node_task, drain_node_task], cs.CRITICAL_RC),
-            ([active_node_task, paused_node_task], cs.OK_RC),
-            ([active_node_task], cs.CRITICAL_RC),
-            ([], cs.CRITICAL_RC),
-    ))
-    def test_process_replicated_service(check_swarm, fs, service_list, expected_rc):
-        fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
-        with patch('check_docker.check_swarm.get_service_tasks',
-                   return_value=service_list) as patched_get_service_running_tasks:
-            check_swarm.process_replicated_service('FOO', 2)
-            assert patched_get_service_running_tasks.call_count == 1
-            assert check_swarm.rc == expected_rc
+@pytest.mark.parametrize("service_list, ignore_paused, expected_rc", (
+        ([active_node_task, paused_node_task, drain_node_task], False, cs.OK_RC),
+        ([active_node_task, drain_node_task], False, cs.CRITICAL_RC),
+        ([active_node_task, paused_node_task], False, cs.OK_RC),
+        ([active_node_task], False, cs.CRITICAL_RC),
+        ([paused_node_task], False, cs.CRITICAL_RC),
+        ([], False, cs.CRITICAL_RC),
+        ([active_node_task], True, cs.OK_RC),
+        ([paused_node_task], True, cs.CRITICAL_RC),
+))
+def test_process_global_service(check_swarm, fs, node_list, service_list, ignore_paused, expected_rc):
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    with patch('check_docker.check_swarm.get_nodes', return_value=(node_list, 999)) as patched_get_nodes, \
+            patch('check_docker.check_swarm.get_service_tasks',
+                  return_value=(service_list, 999)) as patched_get_service_tasks:
+        check_swarm.process_global_service('FOO', ignore_paused)
+        assert patched_get_nodes.call_count == 1
+        assert patched_get_service_tasks.call_count == 1
+        assert check_swarm.rc == expected_rc
 
-    def test_check_service_results_FAIL_missing(check_swarm, fs):
-        service_info = {'Spec': {'Name': 'FOO', 'Mode': {'Global': {}}}}
-        fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
-        args = ['--service', 'missing1']
-        with patch('check_docker.check_swarm.get_url', return_value=([service_info], 200)):
+
+@pytest.mark.parametrize("service_list, expected_rc", (
+        ([active_node_task, paused_node_task, drain_node_task], cs.CRITICAL_RC),
+        ([active_node_task, paused_node_task], cs.OK_RC),
+        ([active_node_task], cs.CRITICAL_RC),
+        ([], cs.CRITICAL_RC),
+))
+def test_process_replicated_service(check_swarm, fs, service_list, expected_rc):
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    with patch('check_docker.check_swarm.get_service_tasks',
+               return_value=service_list) as patched_get_service_running_tasks:
+        check_swarm.process_replicated_service('FOO', 2)
+        assert patched_get_service_running_tasks.call_count == 1
+        assert check_swarm.rc == expected_rc
+
+
+def test_check_service_results_FAIL_missing(check_swarm, fs):
+    service_info = {'Spec': {'Name': 'FOO', 'Mode': {'Global': {}}}}
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    args = ['--service', 'missing1']
+    with patch('check_docker.check_swarm.get_url', return_value=([service_info], 200)):
+        check_swarm.perform_checks(args)
+        assert check_swarm.rc == cs.CRITICAL_RC
+
+
+def test_check_service_results_FAIL_unknown(check_swarm, fs):
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    args = ['--service', 'FOO']
+    with patch('check_docker.check_swarm.get_services', return_value=['FOO', 'BAR']):
+        with patch('check_docker.check_swarm.get_service_info', return_value=('', 500)):
             check_swarm.perform_checks(args)
-            assert check_swarm.rc == cs.CRITICAL_RC
+            assert check_swarm.rc == cs.UNKNOWN_RC
 
-    def test_check_service_results_FAIL_unknown(check_swarm, fs):
-        fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
-        args = ['--service', 'FOO']
-        with patch('check_docker.check_swarm.get_services', return_value=['FOO', 'BAR']):
-            with patch('check_docker.check_swarm.get_service_info', return_value=('', 500)):
-                check_swarm.perform_checks(args)
-                assert check_swarm.rc == cs.UNKNOWN_RC
 
-    def test_check_no_services(check_swarm, fs):
-        fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
-        args = ['--service', 'missing2']
-        with patch('check_docker.check_swarm.get_url', return_value=([], 200)):
-            check_swarm.perform_checks(args)
-            assert check_swarm.rc == cs.CRITICAL_RC
+def test_check_no_services(check_swarm, fs):
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    args = ['--service', 'missing2']
+    with patch('check_docker.check_swarm.get_url', return_value=([], 200)):
+        check_swarm.perform_checks(args)
+        assert check_swarm.rc == cs.CRITICAL_RC
 
-    def test_check_missing_service(check_swarm, fs):
-        service_info = {'Spec': {'Name': 'FOO', 'Mode': {'Global': {}}}}
-        fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
-        args = ['--service', 'missing3']
-        with patch('check_docker.check_swarm.get_url', return_value=([service_info], 200)):
-            check_swarm.perform_checks(args)
-            assert check_swarm.rc == cs.CRITICAL_RC
 
-    def test_check_not_swarm_service(check_swarm, fs):
-        fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
-        args = ['--service', 'missing4']
-        with patch('check_docker.check_swarm.get_url', return_value=('', 406)):
-            check_swarm.perform_checks(args)
-            assert check_swarm.rc == cs.CRITICAL_RC
+def test_check_missing_service(check_swarm, fs):
+    service_info = {'Spec': {'Name': 'FOO', 'Mode': {'Global': {}}}}
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    args = ['--service', 'missing3']
+    with patch('check_docker.check_swarm.get_url', return_value=([service_info], 200)):
+        check_swarm.perform_checks(args)
+        assert check_swarm.rc == cs.CRITICAL_RC
 
-    @pytest.mark.parametrize("messages, perf_data, expected", (
-            ([], [], ''),
-            (['TEST'], [], 'TEST'),
-            (['FOO', 'BAR'], [], 'FOO; BAR'),
-    ))
-    def test_print_results(check_swarm, capsys, messages, perf_data, expected):
-        check_swarm.messages = messages
-        check_swarm.performance_data = perf_data
-        check_swarm.print_results()
-        out, err = capsys.readouterr()
-        assert out.strip() == expected
+
+def test_check_not_swarm_service(check_swarm, fs):
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    args = ['--service', 'missing4']
+    with patch('check_docker.check_swarm.get_url', return_value=('', 406)):
+        check_swarm.perform_checks(args)
+        assert check_swarm.rc == cs.CRITICAL_RC
+
+
+@pytest.mark.parametrize("messages, perf_data, expected", (
+        ([], [], ''),
+        (['TEST'], [], 'TEST'),
+        (['FOO', 'BAR'], [], 'FOO; BAR'),
+))
+def test_print_results(check_swarm, capsys, messages, perf_data, expected):
+    check_swarm.messages = messages
+    check_swarm.performance_data = perf_data
+    check_swarm.print_results()
+    out, err = capsys.readouterr()
+    assert out.strip() == expected

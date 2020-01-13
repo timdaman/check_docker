@@ -165,12 +165,6 @@ class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
         return self.parent.open(request, timeout=request.timeout)
 
 
-# Got some help from this example https://gist.github.com/FiloSottile/2077115
-class HeadRequest(Request):
-    def get_method(self):
-        return "HEAD"
-
-
 better_urllib_get = OpenerDirector()
 better_urllib_get.addheaders = DEFAULT_HEADERS.copy()
 better_urllib_get.add_handler(HTTPHandler())
@@ -286,14 +280,6 @@ def get_url(url):
     return process_urllib_response(response), response.status
 
 
-@lru_cache(maxsize=None)
-def head_url(url):
-    # Follow redirects
-    response = better_urllib_get.open(HeadRequest(url), timeout=timeout)
-    logger.debug("{} {}".format(url, response.status))
-    return response
-
-
 def process_urllib_response(response):
     response_bytes = response.read()
     body = response_bytes.decode('utf-8')
@@ -351,15 +337,10 @@ def get_containers(names, require_present):
     return filtered
 
 
-def get_container_digest(container):
+def get_container_image_id(container):
     # find registry and tag
     inspection = get_container_info(container)
-    image_id = inspection['Image']
-    image_info = get_image_info(image_id)
-    try:
-        return image_info['RepoDigests'][0].split('@')[1]
-    except IndexError:
-        return None
+    return inspection['Image']
 
 
 def get_container_image_urls(container):
@@ -390,12 +371,11 @@ def get_digest_from_registry(url):
     logger.debug("get_digest_from_registry")
     # query registry
     # TODO: Handle logging in if needed
-    registry_info = head_url(url=url)
+    registry_info, status_code = get_url(url=url)
 
-    digest = registry_info.getheader('Docker-Content-Digest', None)
-    if digest is None:
+    if status_code != 200:
         raise RegistryError(response=registry_info)
-    return digest
+    return registry_info['config'].get('digest', None)
 
 
 def set_rc(new_rc):
@@ -623,8 +603,9 @@ def check_restarts(container, thresholds):
 
 @singlethread_execution()
 def check_version(container, insecure_registries):
-    image_digest = get_container_digest(container)
-    if image_digest is None:
+    image_id = get_container_image_id(container)
+    logger.debug("Local container image ID: {}".format(image_id))
+    if image_id is None:
         unknown('Checksum missing for "{}", try doing a pull'.format(container))
         return
 
@@ -637,7 +618,7 @@ def check_version(container, insecure_registries):
         return
 
     url, registry = normalize_image_name_to_manifest_url(image_urls[0], insecure_registries)
-
+    logger.debug("Looking up image digest here {}".format(url))
     try:
         registry_hash = get_digest_from_registry(url)
     except URLError as e:
@@ -655,8 +636,8 @@ def check_version(container, insecure_registries):
     except RegistryError as e:
         unknown("Cannot check version, couldn't retrieve digest for {} while checking {}.".format(container, url))
         return
-
-    if registry_hash == image_digest:
+    logger.debug("Image digests, local={} remote={}".format(image_id, registry_hash))
+    if registry_hash == image_id:
         ok("{}'s version matches registry".format(container))
         return
     critical("{}'s version does not match registry".format(container))
