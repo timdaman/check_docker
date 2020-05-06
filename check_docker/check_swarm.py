@@ -191,7 +191,7 @@ def process_global_service(name, ignore_paused=False):
     # If a task is on a targeted node confirm it is running
     # Services that are not running are considered bad. This is to prevent services in crash loops from being ignored
     # Also note, this ignores conditions where services state they are running on a node not in the index.
-    service_tasks, _ = get_service_tasks(name)
+    service_tasks = get_service_tasks(name)
     for task in service_tasks:
         if task['Status']['State'] != 'running':
             critical('Global service {service} has one or more tasks not running'.format(service=name))
