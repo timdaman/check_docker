@@ -6,6 +6,7 @@ import os
 import re
 import socket
 import stat
+import traceback
 from functools import lru_cache
 from http.client import HTTPConnection
 from sys import argv
@@ -346,6 +347,7 @@ def perform_checks(raw_args):
                     check_service(name=service, ignore_paused=args.ignore_paused)
 
         except Exception as e:
+            traceback.print_exc()
             unknown("Exception raised during check: {}".format(repr(e)))
 
     print_results()
