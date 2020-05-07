@@ -17,7 +17,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2019"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.2.1"
+__version__ = "2.2.2"
 
 '''
 nrpe compatible check for docker swarm

@@ -307,8 +307,7 @@ def test_check_services_global_ignore_paused(check_swarm, fs):
 def test_process_global_service(check_swarm, fs, node_list, service_list, ignore_paused, expected_rc):
     fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     with patch('check_docker.check_swarm.get_nodes', return_value=(node_list, 999)) as patched_get_nodes, \
-            patch('check_docker.check_swarm.get_service_tasks',
-                  return_value=(service_list, 999)) as patched_get_service_tasks:
+            patch('check_docker.check_swarm.get_service_tasks', return_value=service_list) as patched_get_service_tasks:
         check_swarm.process_global_service('FOO', ignore_paused)
         assert patched_get_nodes.call_count == 1
         assert patched_get_service_tasks.call_count == 1
