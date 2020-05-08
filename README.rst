@@ -73,7 +73,7 @@ check_docker Usage
                          [--memory WARN:CRIT:UNITS] [--status STATUS] [--health]
                          [--uptime WARN:CRIT] [--image-age WARN:CRIT] [--version]
                          [--insecure-registries INSECURE_REGISTRIES [INSECURE_REGISTRIES ...]]
-                         [--restarts WARN:CRIT] [-V]
+                         [--restarts WARN:CRIT] [--no-ok] [--no-performance] [-V]
 
   Check docker containers.
 
@@ -127,11 +127,12 @@ check_swarm Usage
 
 ::
 
-  usage: check_swarm [-h]
-                     [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
-                     | --secure-connection [<ip/host address>:<port>]]
-                     [--timeout TIMEOUT]
-                     (--swarm | --service SERVICE [SERVICE ...]) [-V]
+  usage: check_swarm.py [-h]
+                        [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
+                        | --secure-connection [<ip/host address>:<port>]]
+                        [--timeout TIMEOUT]
+                        (--swarm | --service SERVICE [SERVICE ...] | --ignore_paused)
+                        [-V]
 
   Check docker swarm.
 
@@ -147,6 +148,7 @@ check_swarm Usage
     --service SERVICE [SERVICE ...]
                           One or more RegEx that match the names of the
                           services(s) to check.
+    --ignore_paused       Don't require global services to be running on paused nodes
     -V                    show program's version number and exit
 
 Gotchas
