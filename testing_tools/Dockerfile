@@ -1,4 +1,5 @@
-FROM ubuntu:18.04 AS build
+FROM ubuntu:20.04 AS build
+ENV DEBIAN_FRONTEND=noninteractive
 
 ENV PYENV_ROOT="/pyenv"
 ENV PATH="$PYENV_ROOT/bin:$PATH"
@@ -12,11 +13,12 @@ RUN curl -kL https://github.com/pyenv/pyenv/archive/master.tar.gz | tar -xz \
 RUN echo 3.5.6 3.6.7 3.7.1 | xargs -n 1 -P $(nproc) pyenv install
 RUN /pyenv/versions/3.7.1/bin/pip3.7 install setuptools wheel flit tox
 
-FROM ubuntu:18.04
+FROM ubuntu:20.04
+ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-lc"]
 ENTRYPOINT ["/bin/bash", "-lc"]
 RUN apt update \
-    && apt install --no-install-recommends --fix-missing -y git libssl1.0.0 libssl1.1 ca-certificates netbase \
+    && apt install --no-install-recommends --fix-missing -y git libssl1.1 ca-certificates netbase \
     && apt-get autoremove -y \
     && apt-get clean all \
     && rm -rf /var/lib/apt/lists/*

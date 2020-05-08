@@ -6,6 +6,7 @@ import os
 import re
 import socket
 import stat
+import traceback
 from functools import lru_cache
 from http.client import HTTPConnection
 from sys import argv
@@ -16,7 +17,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2019"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.2.1"
+__version__ = "2.2.2"
 
 '''
 nrpe compatible check for docker swarm
@@ -190,7 +191,7 @@ def process_global_service(name, ignore_paused=False):
     # If a task is on a targeted node confirm it is running
     # Services that are not running are considered bad. This is to prevent services in crash loops from being ignored
     # Also note, this ignores conditions where services state they are running on a node not in the index.
-    service_tasks, _ = get_service_tasks(name)
+    service_tasks = get_service_tasks(name)
     for task in service_tasks:
         if task['Status']['State'] != 'running':
             critical('Global service {service} has one or more tasks not running'.format(service=name))
@@ -346,6 +347,7 @@ def perform_checks(raw_args):
                     check_service(name=service, ignore_paused=args.ignore_paused)
 
         except Exception as e:
+            traceback.print_exc()
             unknown("Exception raised during check: {}".format(repr(e)))
 
     print_results()
