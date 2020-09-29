@@ -197,7 +197,7 @@ def process_global_service(name, ignore_paused=False):
             node_index.discard(task['NodeID'])
 
     if len(node_index) > 0:
-        critical('Global service {service} has {count} tasks not running'.format(service=name, count=len(node_list)))
+        critical('Global service {service} has {count} tasks not running'.format(service=name, count=len(node_index)))
         return
 
     ok('Global service {service} OK'.format(service=name))
