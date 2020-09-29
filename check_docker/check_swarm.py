@@ -178,7 +178,7 @@ def check_swarm():
 def process_global_service(name, ignore_paused=False):
     bad_node_states = {'drain'}
     if ignore_paused:
-        bad_node_states.add('paused')
+        bad_node_states.add('pause')
 
     # Get all the nodes we care about based on their state
     node_list, status = get_nodes()
@@ -193,13 +193,12 @@ def process_global_service(name, ignore_paused=False):
     # Also note, this ignores conditions where services state they are running on a node not in the index.
     service_tasks = get_service_tasks(name)
     for task in service_tasks:
-        if task['Status']['State'] != 'running':
-            critical('Global service {service} has one or more tasks not running'.format(service=name))
-            return
-        node_index.discard(task['NodeID'])
+        if task['Status']['State'] == 'running' and task['NodeID'] in node_index:
+            node_index.discard(task['NodeID'])
 
     if len(node_index) > 0:
         critical('Global service {service} has {count} tasks not running'.format(service=name, count=len(node_list)))
+        return
 
     ok('Global service {service} OK'.format(service=name))
 
@@ -266,6 +265,11 @@ def process_args(args):
                         default=DEFAULT_TIMEOUT,
                         help='Connection timeout in seconds. (default: %(default)s)')
 
+    parser.add_argument('--ignore_paused',
+                        dest='ignore_paused',
+                        action='store_true',
+                        help="Don't require global services to be running on paused nodes")
+
     swarm_group = parser.add_mutually_exclusive_group(required=True)
 
     # Swarm
@@ -283,11 +287,6 @@ def process_args(args):
                              nargs='+',
                              default=[],
                              help='One or more RegEx that match the names of the services(s) to check.')
-
-    swarm_group.add_argument('--ignore_paused',
-                             dest='ignore_paused',
-                             action='store_true',
-                             help="Don't require global services to be running on paused nodes")
 
     parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
 
