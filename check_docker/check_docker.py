@@ -101,8 +101,9 @@ DISABLE_THREADING = False
 # urllib and http.client's  capabilities the class below tweaks HttpConnection and passes it
 # to urllib registering for socket:// connections
 
+# This is all side effect so excluding coverage
 class SocketFileHandler(AbstractHTTPHandler):
-    class SocketFileToHttpConnectionAdaptor(HTTPConnection):
+    class SocketFileToHttpConnectionAdaptor(HTTPConnection): # pragma: no cover
         def __init__(self, socket_file, timeout=DEFAULT_TIMEOUT):
             super().__init__(host='', port=0, timeout=timeout)
             self.socket_file = socket_file
@@ -765,7 +766,7 @@ def process_args(args):
                         action='store',
                         type=str,
                         metavar='WARN:CRIT',
-                        help='Check cpu usage percentage taking into account any limits. Valid values are 0 - 100.')
+                        help='Check cpu usage percentage taking into account any limits.')
 
     # Memory
     parser.add_argument('--memory',

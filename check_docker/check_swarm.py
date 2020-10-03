@@ -52,8 +52,8 @@ messages = []
 # urllib and http.client's  capabilities the class below tweaks HttpConnection and passes it
 # to urllib registering for socket:// connections
 
-
-class SocketFileHandler(AbstractHTTPHandler):
+# This is all side effect so excluding coverage
+class SocketFileHandler(AbstractHTTPHandler):  # pragma: no cover
     class SocketFileToHttpConnectionAdaptor(HTTPConnection):
         def __init__(self, socket_file, timeout=DEFAULT_TIMEOUT):
             super().__init__(host='', port=0, timeout=timeout)
