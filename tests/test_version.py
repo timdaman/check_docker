@@ -37,6 +37,8 @@ def test_package_present():
 
 @pytest.mark.xfail('TRAVIS_BRANCH' in os.environ and os.environ['TRAVIS_BRANCH'].lower != 'master',
                    reason="Ignore version check outside of master")
+@pytest.mark.xfail('GITHUB_HEAD_REF' in os.environ and os.environ['GITHUB_HEAD_REF'].lower != 'master',
+                   reason="Ignore version check outside of master")
 @pytest.mark.skipif('isolated' in os.environ and os.environ['isolated'].lower != 'false',
                     reason="Can not reach Python package index when isolated")
 @pytest.mark.skipif(sys.version_info[0:2] != (3, 8), reason="Only check on python 3.8")
