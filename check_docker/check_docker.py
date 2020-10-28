@@ -57,6 +57,9 @@ unit_adjustments = None
 # Reduce message to a single OK unless a checks fail.
 no_ok = False
 
+# Reduce message to a single UNKNOWN unless a checks fail.
+no_unknown = False
+
 # Suppress performance data reporting
 no_performance = False
 
@@ -836,6 +839,12 @@ def process_args(args):
                         action='store_true',
                         help='Make output terse suppressing OK messages. If all checks are OK return a single OK.')
 
+    # no-unknown
+    parser.add_argument('--no-unknown',
+                        dest='no_unknown',
+                        action='store_true',
+                        help='Make output terse suppressing UNKNOWN messages. If all checks are UNKNOWN return a single UNKNOWN.')
+
     # no-performance
     parser.add_argument('--no-performance',
                         dest='no_performance',
@@ -886,16 +895,24 @@ def socketfile_permissions_failure(parsed_args):
 
 
 def print_results():
-    if no_ok:
-        # Remove all the "OK"s
-        filtered_messages = [message for message in messages if not message.startswith('OK: ')]
+    if no_ok or no_unknown:
+        if no_ok:
+          # Remove all the "OK"s
+          filtered_messages = [message for message in messages if not message.startswith('OK: ')]
+        if no_unknown:
+          # Remove all the "UNKNOWN"s
+          filtered_messages = [message for message in messages if not message.startswith('UNKNOWN: ')]
         if len(filtered_messages) == 0:
-            messages_concat = 'OK'
+            if no_ok:
+              messages_concat = 'OK'
+            if no_unknown:
+              messages_concat = 'UNKNOWN'
         else:
             messages_concat = '; '.join(filtered_messages)
 
     else:
         messages_concat = '; '.join(messages)
+
 
     if no_performance or len(performance_data) == 0:
         print(messages_concat)
@@ -917,6 +934,9 @@ def perform_checks(raw_args):
 
     global no_ok
     no_ok = args.no_ok
+
+    global no_unknown
+    no_unknown = args.no_unknown
 
     global no_performance
     no_performance = args.no_ok
