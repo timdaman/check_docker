@@ -520,7 +520,7 @@ def check_memory(container, thresholds):
     inspection = get_stats(container)
 
     # Subtracting cache to match what `docker stats` does.
-    adjusted_usage = inspection['memory_stats']['usage'] - inspection['memory_stats']['stats']['total_cache']
+    adjusted_usage = inspection['memory_stats']['usage'] - inspection['memory_stats']['stats']['inactive_file']
     if thresholds.units == '%':
         max = 100
         usage = int(100 * adjusted_usage / inspection['memory_stats']['limit'])
