@@ -935,7 +935,12 @@ def perform_checks(raw_args):
 
     # Here is where all the work happens
     #############################################################################################
-    containers = get_containers(args.containers, args.present)
+    try:
+        containers = get_containers(args.containers, args.present)
+    except URLError as e:
+        critical(f'Failed to connect to daemon: {e.reason}.')
+        print_results()
+        exit(rc)
 
     if len(containers) == 0 and not args.present:
         unknown("No containers names found matching criteria")
