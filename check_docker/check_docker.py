@@ -892,10 +892,10 @@ def print_results():
         if len(filtered_messages) == 0:
             messages_concat = 'OK'
         else:
-            messages_concat = '; '.join(filtered_messages)
+            messages_concat = ';\n'.join(filtered_messages)
 
     else:
-        messages_concat = '; '.join(messages)
+        messages_concat = ';\n'.join(messages)
 
     if no_performance or len(performance_data) == 0:
         print(messages_concat)
