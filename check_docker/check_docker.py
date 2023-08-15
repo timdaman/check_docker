@@ -316,10 +316,13 @@ def get_ps_name(name_list):
         raise NameError("Error when trying to identify 'ps' name in {}".format(name_list))
 
 
-def get_containers(names, require_present):
+def get_containers(names, require_present, exclude_containers):
     containers_list, _ = get_url(daemon + '/containers/json?all=1')
 
     all_container_names = set(get_ps_name(x['Names']) for x in containers_list)
+
+    if exclude_containers:
+        all_container_names = all_container_names.difference(exclude_containers)
 
     if 'all' in names:
         return all_container_names
@@ -745,6 +748,15 @@ def process_args(args):
                         default=['all'],
                         help='One or more RegEx that match the names of the container(s) to check. If omitted all containers are checked. (default: %(default)s)')
 
+    # Exclude container name
+    parser.add_argument('--exclude_containers',
+                        dest='exclude_containers',
+                        action='store',
+                        nargs='+',
+                        type=str,
+                        default=[],
+                        help='One or more containers to ignore. If omitted all containers are checked.')
+
     # Container name
     parser.add_argument('--present',
                         dest='present',
@@ -935,7 +947,7 @@ def perform_checks(raw_args):
 
     # Here is where all the work happens
     #############################################################################################
-    containers = get_containers(args.containers, args.present)
+    containers = get_containers(args.containers, args.present, args.exclude_containers)
 
     if len(containers) == 0 and not args.present:
         unknown("No containers names found matching criteria")
