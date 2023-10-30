@@ -138,13 +138,13 @@ class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
     https_response = http_response
 
     @staticmethod
-    def _get_outh2_token(www_authenticate_header):
+    def _get_oauth2_token(www_authenticate_header):
         auth_fields = dict(re.findall(r"""(?:(?P<key>[^ ,=]+)="([^"]+)")""", www_authenticate_header))
 
         auth_url = "{realm}?scope={scope}&service={service}".format(
-            realm=auth_fields['realm'],
-            scope=auth_fields['scope'],
-            service=auth_fields['service'],
+            realm=auth_fields.get('realm'),
+            scope=auth_fields.get('scope'),
+            service=auth_fields.get('service'),
         )
         token_request = Request(auth_url)
         token_request.add_header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
@@ -160,7 +160,7 @@ class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
             raise HTTPError(full_url, 401, "Stopping Oauth2 failure loop for {}".format(full_url),
                             response.headers, response)
 
-        auth_token = self._get_outh2_token(www_authenticate_header)
+        auth_token = self._get_oauth2_token(www_authenticate_header)
 
         request.add_unredirected_header('Authorization', 'Bearer ' + auth_token)
         return self.parent.open(request, timeout=request.timeout)

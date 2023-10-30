@@ -90,7 +90,7 @@ def test_get_url_with_oauth2(check_docker):
                                       headers={'test': 'test'})
 
     with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=[mock_response1, mock_response2]), \
-         patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_outh2_token',
+         patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_oauth2_token',
                return_value='test_token') as get_token:
         response = check_docker.get_url(url='https://example.com/test')
         assert response == ({"test_key": "test_value"}, 200)
@@ -106,7 +106,7 @@ def test_get_url_with_oauth2_loop(check_docker):
         return mock_response
 
     with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=mock_open), \
-         patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_outh2_token',
+         patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_oauth2_token',
                return_value='test_token') as get_token:
         with pytest.raises(HTTPError):
             check_docker.get_url(url='https://example.com/test')
@@ -832,7 +832,7 @@ def test_get_manifest_auth_token(check_docker):
     expected_response = FakeHttpResponse(content=encoded, http_code=200)
     with patch('check_docker.check_docker.request.urlopen', return_value=expected_response):
         www_authenticate_header = 'Bearer realm="https://example.com/token",service="example.com",scope="repository:test:pull"'
-        token = check_docker.Oauth2TokenAuthHandler._get_outh2_token(www_authenticate_header)
+        token = check_docker.Oauth2TokenAuthHandler._get_oauth2_token(www_authenticate_header)
         assert token == 'test'
 
 
