@@ -358,26 +358,39 @@ def normalize_image_name_to_manifest_url(image_name, insecure_registries):
 
     # Registry query url
     scheme = 'http' if parsed_url.registry.lower() in lower_insecure else 'https'
-    url = '{scheme}://{registry}/v2/{image_name}/manifests/{image_tag}'.format(scheme=scheme,
+    url = '{scheme}://{registry}/v2/{image_name}/manifests'.format(scheme=scheme,
                                                                                registry=parsed_url.registry,
-                                                                               image_name=parsed_url.name,
-                                                                               image_tag=parsed_url.tag)
-    return url, parsed_url.registry
+                                                                               image_name=parsed_url.name)
+    image_tag = parsed_url.tag
+
+    return url, image_tag, parsed_url.registry
 
 
 # Auth servers seem picky about being hit too hard. Can't figure out why. ;)
 # As result it is best to single thread this check
 # This is based on https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-def get_digest_from_registry(url):
+def get_digest_from_registry(url, image_tag, image_arch):
     logger.debug("get_digest_from_registry")
     # query registry
     # TODO: Handle logging in if needed
-    registry_info, status_code = get_url(url=url)
+    image_url = '{}/{}'.format(url, image_tag)
+    registry_info, status_code = get_url(url=image_url)
+
+    if 'manifests' in registry_info:
+        digest = find_digest_for_architecture(registry_info['manifests'], image_arch)
+        image_url = '{}/{}'.format(url, digest)
+        registry_info, status_code = get_url(url=image_url)
 
     if status_code != 200:
         raise RegistryError(response=registry_info)
+
     return registry_info['config'].get('digest', None)
 
+def find_digest_for_architecture(manifests, image_arch):
+    for manifest in manifests:
+        if 'platform' in manifest and manifest['platform']['architecture'] == image_arch:
+            return manifest.get('digest')
+    return None
 
 def set_rc(new_rc):
     global rc
@@ -625,10 +638,14 @@ def check_version(container, insecure_registries):
         unknown('"{}" has last no repository tag. Is this anywhere else?'.format(container))
         return
 
-    url, registry = normalize_image_name_to_manifest_url(image_urls[0], insecure_registries)
-    logger.debug("Looking up image digest here {}".format(url))
+
+    container_image = get_container_info(container)['Image']
+    image_arch = get_image_info(container_image)['Architecture']
+
+    url, image_tag, registry = normalize_image_name_to_manifest_url(image_urls[0], insecure_registries)
+    logger.debug("Looking up image digest here {}/{}".format(url, image_tag))
     try:
-        registry_hash = get_digest_from_registry(url)
+        registry_hash = get_digest_from_registry(url, image_tag, image_arch)
     except URLError as e:
         if hasattr(e.reason, 'reason') and e.reason.reason == 'UNKNOWN_PROTOCOL':
             unknown(
@@ -637,12 +654,12 @@ def check_version(container, insecure_registries):
             return
         elif hasattr(e.reason, 'strerror') and e.reason.strerror == 'nodename nor servname provided, or not known':
             unknown(
-                "Cannot reach registry for {} at {}".format(container, url))
+                "Cannot reach registry for {} at {}/{}".format(container, url, image_tag))
             return
         else:
             raise e
     except RegistryError as e:
-        unknown("Cannot check version, couldn't retrieve digest for {} while checking {}.".format(container, url))
+        unknown("Cannot check version, couldn't retrieve digest for {} while checking {}/{}.".format(container, url, image_tag))
         return
     logger.debug("Image digests, local={} remote={}".format(image_id, registry_hash))
     if registry_hash == image_id:
@@ -773,7 +790,7 @@ def process_args(args):
                         action='store',
                         type=str,
                         metavar='WARN:CRIT',
-                        help='Check cpu usage percentage taking into account any limits.')
+                        help='Check cpu usage percentage taking into account any limits. Valid values are 0 - 100.')
 
     # Memory
     parser.add_argument('--memory',
