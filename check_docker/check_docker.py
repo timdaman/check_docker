@@ -694,6 +694,19 @@ def check_cpu(container, thresholds):
                                 min=0, max=max)
 
 
+def check_no_running():
+    """Check if any containers are running."""
+
+    containers = get_containers('all', True)
+    running_containers = [c for c in containers if get_container_info(c)['State']['Running']]
+
+    if running_containers:
+        container_names = ', '.join(c for c in running_containers)
+        critical(f"Running containers detected: {container_names}")
+    else:
+        ok("No containers are running.")
+
+
 def process_args(args):
     parser = argparse.ArgumentParser(description='Check docker containers.')
 
@@ -751,6 +764,12 @@ def process_args(args):
                         default=False,
                         action='store_true',
                         help='Modifies --containers so that each RegEx must match at least one container.')
+
+    # No running containers
+    parser.add_argument('--no-running',
+                        dest='no_running',
+                        action='store_true',
+                        help='Check that no containers are running.')
 
     # Threads
     parser.add_argument('--threads',
@@ -935,6 +954,9 @@ def perform_checks(raw_args):
 
     # Here is where all the work happens
     #############################################################################################
+    if args.no_running:
+        check_no_running()
+
     containers = get_containers(args.containers, args.present)
 
     if len(containers) == 0 and not args.present:
