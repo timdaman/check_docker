@@ -351,7 +351,7 @@ def socketfile_permissions_failure(parsed_args):
 
 
 def print_results():
-    print('; '.join(messages))
+    print('\n'.join(messages))
 
 
 def perform_checks(raw_args):
@@ -360,7 +360,6 @@ def perform_checks(raw_args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
     else:
         # Here is where all the work happens
-        #############################################################################################
         try:
             if args.swarm:
                 check_swarm()

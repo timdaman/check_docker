@@ -320,7 +320,6 @@ def get_state(container):
 
 def get_stats(container):
     content, _ = get_url(daemon + '/containers/{container}/stats?stream=0'.format(container=container))
-    print(content)
     return content
 
 
