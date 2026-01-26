@@ -125,7 +125,7 @@ class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
     auth_failure_tracker = defaultdict(int)
 
     def http_response(self, request, response):
-        code, hdrs = response.code, response.headers
+        code= response.code
 
         www_authenticate_header = response.headers.get('www-authenticate', None)
         if code == 401 and www_authenticate_header:
@@ -634,7 +634,7 @@ def check_version(container, insecure_registries):
             return
         else:
             raise e
-    except RegistryError as e:
+    except RegistryError:
         unknown("Cannot check version, couldn't retrieve digest for {} while checking {}.".format(container, url))
         return
     logger.debug("Image digests, local={} remote={}".format(image_id, registry_hash))
