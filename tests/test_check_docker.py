@@ -703,8 +703,8 @@ def test_perform(check_docker, fs, args, called):
 
 @pytest.mark.parametrize("messages, perf_data, expected", (
         (['TEST'], [], 'TEST'),
-        (['FOO', 'BAR'], [], 'FOO; BAR'),
-        (['FOO', 'BAR'], ['1;2;3;4;'], 'FOO; BAR|1;2;3;4;')
+        (['FOO', 'BAR'], [], 'FOO\nBAR'),
+        (['FOO', 'BAR'], ['1;2;3;4;'], 'FOO\nBAR|1;2;3;4;')
 ))
 def test_print_results(check_docker, capsys, messages, perf_data, expected):
     # These sometimes get set to true when using random-order plugin, for example --random-order-seed=620808
@@ -720,8 +720,8 @@ def test_print_results(check_docker, capsys, messages, perf_data, expected):
 @pytest.mark.parametrize("messages, perf_data, no_ok, no_performance, expected", (
         ([], [], False, False, ''),
         (['TEST'], [], False, False, 'TEST'),
-        (['FOO', 'BAR'], [], False, False, 'FOO; BAR'),
-        (['FOO', 'BAR'], ['1;2;3;4;'], False, False, 'FOO; BAR|1;2;3;4;'),
+        (['FOO', 'BAR'], [], False, False, 'FOO\nBAR'),
+        (['FOO', 'BAR'], ['1;2;3;4;'], False, False, 'FOO\nBAR|1;2;3;4;'),
         ([], [], True, False, 'OK'),
         (['OK: TEST'], [], True, False, 'OK'),
         (['OK: FOO', 'OK: BAR'], [], True, False, 'OK'),
