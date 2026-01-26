@@ -951,7 +951,7 @@ def perform_checks(raw_args):
     no_ok = args.no_ok
 
     global no_performance
-    no_performance = args.no_ok
+    no_performance = args.no_performance
 
     if socketfile_permissions_failure(args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
