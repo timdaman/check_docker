@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# logging.basicConfig(level=logging.DEBUG)
+
 import argparse
 import json
 import logging
@@ -8,6 +8,7 @@ import os
 import re
 import socket
 import stat
+import sys
 import traceback
 from collections import deque, namedtuple, UserDict, defaultdict
 from concurrent import futures
@@ -276,16 +277,31 @@ def evaluate_numeric_thresholds(container, value, thresholds, name, short_name,
 @lru_cache(maxsize=None)
 def get_url(url):
     logger.debug("get_url: {}".format(url))
-    response = better_urllib_get.open(url, timeout=timeout)
-    logger.debug("get_url: {} {}".format(url, response.status))
-    return process_urllib_response(response), response.status
+    try:
+        response = better_urllib_get.open(url, timeout=timeout)
+        logger.debug("get_url: {} {}".format(url, response.status))
+        return process_urllib_response(response), response.status
+    except URLError as e:
+        unknown(f'Failed to connect to daemon: {e.reason}.')
+    # We have no result, so we can just exit
+    print_results()
+    sys.exit(rc)
 
 
 def process_urllib_response(response):
     response_bytes = response.read()
     body = response_bytes.decode('utf-8')
-    # logger.debug("BODY: {}".format(body))
-    return json.loads(body)
+    logger.debug(body)
+
+    resp = {}
+    try:
+        resp = json.loads(body)
+    except json.JSONDecodeError as e:
+        unknown(f'Unable to parse response.')
+        print_results()
+        sys.exit(rc)
+
+    return resp
 
 
 def get_container_info(name):
@@ -304,6 +320,7 @@ def get_state(container):
 
 def get_stats(container):
     content, _ = get_url(daemon + '/containers/{container}/stats?stream=0'.format(container=container))
+    print(content)
     return content
 
 
@@ -849,12 +866,21 @@ def process_args(args):
                         action='store_true',
                         help='Suppress performance data. Reduces output when performance data is not being used.')
 
+    # Debug logging
+    parser.add_argument('--debug',
+                        dest='debug',
+                        action='store_true',
+                        help='Enable debug logging.')
+
     parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
 
     if len(args) == 0:
         parser.print_help()
 
     parsed_args = parser.parse_args(args=args)
+
+    if parsed_args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     global timeout
     timeout = parsed_args.timeout
@@ -941,12 +967,7 @@ def perform_checks(raw_args):
         return
 
     # Here is where all the work happens
-    try:
-        containers = get_containers(args.containers, args.present)
-    except URLError as e:
-        critical(f'Failed to connect to daemon: {e.reason}.')
-        print_results()
-        exit(rc)
+    containers = get_containers(args.containers, args.present)
 
     if len(containers) == 0 and not args.present:
         unknown("No containers names found matching criteria")

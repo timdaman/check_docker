@@ -108,14 +108,15 @@ def test_get_url_with_oauth2_loop(check_docker):
     with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=mock_open), \
          patch('check_docker.check_docker.Oauth2TokenAuthHandler._get_oauth2_token',
                return_value='test_token') as get_token:
-        with pytest.raises(HTTPError):
+        with pytest.raises(SystemExit):
             check_docker.get_url(url='https://example.com/test')
 
 
 def test_get_url_500(check_docker):
     expected_exception = HTTPError(code=500, fp=None, url='url', msg='msg', hdrs=[])
     with patch('check_docker.check_docker.HTTPSHandler.https_open', side_effect=expected_exception), \
-         pytest.raises(HTTPError):
+         pytest.raises(SystemExit):
+
         check_docker.get_url(url='https://example.com/test')
 
 

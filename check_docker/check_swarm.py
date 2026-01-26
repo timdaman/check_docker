@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import argparse
 import json
 import logging
@@ -6,10 +7,12 @@ import os
 import re
 import socket
 import stat
+import sys
 import traceback
 from functools import lru_cache
 from http.client import HTTPConnection
 from sys import argv
+from urllib.error import URLError
 from urllib.request import AbstractHTTPHandler, HTTPHandler, HTTPSHandler, OpenerDirector
 
 logger = logging.getLogger()
@@ -78,21 +81,34 @@ better_urllib_get.add_handler(HTTPSHandler())
 better_urllib_get.add_handler(SocketFileHandler())
 
 
-# Util functions
-#############################################################################################
-
-
 @lru_cache()
 def get_url(url):
-    response = better_urllib_get.open(url, timeout=timeout)
-    return process_urllib_response(response), response.status
+    logger.debug("get_url: {}".format(url))
+    try:
+        response = better_urllib_get.open(url, timeout=timeout)
+        logger.debug("get_url: {} {}".format(url, response.status))
+        return process_urllib_response(response), response.status
+    except URLError as e:
+        unknown(f'Failed to connect to daemon: {e.reason}.')
+    # We have no result, so we can just exit
+    print_results()
+    sys.exit(rc)
 
 
 def process_urllib_response(response):
     response_bytes = response.read()
     body = response_bytes.decode('utf-8')
     logger.debug(body)
-    return json.loads(body)
+
+    resp = {}
+    try:
+        resp = json.loads(body)
+    except json.JSONDecodeError as e:
+        unknown(f'Unable to parse response.')
+        print_results()
+        sys.exit(rc)
+
+    return resp
 
 
 def get_swarm_status():
@@ -289,12 +305,21 @@ def process_args(args):
                              action='store_true',
                              help="Don't require global services to be running on paused nodes")
 
+    # Debug logging
+    parser.add_argument('--debug',
+                        dest='debug',
+                        action='store_true',
+                        help='Enable debug logging.')
+
     parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
 
     if len(args) == 0:
         parser.print_help()
 
     parsed_args = parser.parse_args(args=args)
+
+    if parsed_args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     global timeout
     timeout = parsed_args.timeout
