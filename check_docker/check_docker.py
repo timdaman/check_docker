@@ -122,7 +122,7 @@ class SocketFileHandler(AbstractHTTPHandler):
 
 # Tokens are not cached because I expect the callers to cache the responses
 class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
-    auth_failure_tracker = defaultdict(int)
+    auth_failure_tracker : dict[str, int] = defaultdict(int)
 
     def http_response(self, request, response):
         code= response.code
