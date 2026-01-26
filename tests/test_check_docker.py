@@ -846,13 +846,14 @@ def test_get_container_image_urls(check_docker):
         assert urls == ['test']
 
 
-@pytest.mark.parametrize('image_url, expected_normal_url', (
-        ('foo', 'https://' + cd.DEFAULT_PUBLIC_REGISTRY + '/v2/library/foo/manifests/latest'),
-        ('insecure.com/foo', 'http://insecure.com/v2/foo/manifests/latest'),
+@pytest.mark.parametrize('image_url, expected_normal_url, expected_tag', (
+        ('foo', 'https://' + cd.DEFAULT_PUBLIC_REGISTRY + '/v2/library/foo/manifests', 'latest'),
+        ('insecure.com/foo', 'http://insecure.com/v2/foo/manifests', 'latest'),
 ))
-def test_normalize_image_name_to_manifest_url(check_docker, image_url, expected_normal_url):
+def test_normalize_image_name_to_manifest_url(check_docker, image_url, expected_normal_url, expected_tag):
     insecure_registries = ('insecure.com',)
-    normal_url, _ = check_docker.normalize_image_name_to_manifest_url(image_url, insecure_registries)
+    normal_url, tag, _ = check_docker.normalize_image_name_to_manifest_url(image_url, insecure_registries)
+    assert tag == expected_tag
     assert normal_url == expected_normal_url
 
 
@@ -866,17 +867,17 @@ def test_get_container_image_id(check_docker):
 def test_get_digest_from_registry_no_auth(check_docker):
     fake_data = {'config': {'digest': 'test_token'}}
     with patch('check_docker.check_docker.get_url', return_value=(fake_data, 200)):
-        digest = check_docker.get_digest_from_registry('https://example.com/v2/test/manifests/lastest')
+        digest = check_docker.get_digest_from_registry('https://example.com/v2/test/manifests/', 'latest', 'x86')
         assert digest == "test_token"
 
 
 def test_get_digest_from_registry_missing_digest(check_docker):
     with patch('check_docker.check_docker.get_url', return_value=({},404)):
         with pytest.raises(check_docker.RegistryError):
-            check_docker.get_digest_from_registry('https://example.com/v2/test/manifests/lastest')
+            check_docker.get_digest_from_registry('https://example.com/v2/test/manifests/', 'lastest', 'arm')
 
 
-@pytest.mark.parametrize('local_container_container_image_id,registry_container_digest, image_urls, expected_rc', (
+@pytest.mark.parametrize('local_container_container_image_id, registry_container_digest, image_urls, expected_rc', (
         ('AAAA', 'AAAA', ('example.com/foo',), cd.OK_RC),
         ('AAAA', 'BBBB', ('example.com/foo',), cd.CRITICAL_RC),
         (None, '', ('example.com/foo',), cd.UNKNOWN_RC),
@@ -887,6 +888,8 @@ def test_check_version(check_docker, local_container_container_image_id, registr
                        expected_rc):
     with patch('check_docker.check_docker.get_container_image_id', return_value=local_container_container_image_id), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=image_urls), \
+         patch('check_docker.check_docker.get_container_info', return_value={'Image': 'sha256:867'}), \
+         patch('check_docker.check_docker.get_image_info', return_value={'Architecture': 'arm64'}), \
          patch('check_docker.check_docker.get_digest_from_registry', return_value=registry_container_digest):
         check_docker.check_version('container', tuple())
         assert check_docker.rc == expected_rc
@@ -895,7 +898,9 @@ def test_check_version(check_docker, local_container_container_image_id, registr
 def test_check_version_missing_digest(check_docker):
     with patch('check_docker.check_docker.get_container_image_id', return_value='AAA'), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=('example.com/foo',)), \
-         patch('check_docker.check_docker.get_digest_from_registry',
+         patch('check_docker.check_docker.get_container_info', return_value={'Image': 'sha256:867'}), \
+         patch('check_docker.check_docker.get_image_info', return_value={'Architecture': 'arm64'}), \
+         patch('check_docker.check_docker.get_digest_from_registry', return_value=('', '', ''),
                side_effect=check_docker.RegistryError(response=None)):
         check_docker.check_version('container', tuple())
         assert check_docker.rc == cd.UNKNOWN_RC
@@ -908,6 +913,8 @@ def test_check_version_not_tls(check_docker):
     exception = URLError(reason=Reason)
     with patch('check_docker.check_docker.get_container_image_id', return_value='AAA'), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=('example.com/foo',)), \
+         patch('check_docker.check_docker.get_container_info', return_value={'Image': 'sha256:867'}), \
+         patch('check_docker.check_docker.get_image_info', return_value={'Architecture': 'arm64'}), \
          patch('check_docker.check_docker.get_digest_from_registry', side_effect=exception):
         check_docker.check_version('container', tuple())
         assert check_docker.rc == cd.UNKNOWN_RC
@@ -921,6 +928,8 @@ def test_check_version_no_such_host(check_docker):
     exception = URLError(reason=Reason)
     with patch('check_docker.check_docker.get_container_image_id', return_value='AAA'), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=('example.com/foo',)), \
+         patch('check_docker.check_docker.get_container_info', return_value={'Image': 'sha256:867'}), \
+         patch('check_docker.check_docker.get_image_info', return_value={'Architecture': 'arm64'}), \
          patch('check_docker.check_docker.get_digest_from_registry', side_effect=exception):
         check_docker.check_version('container', tuple())
         assert check_docker.rc == cd.UNKNOWN_RC
@@ -932,6 +941,8 @@ def test_check_version_exception(check_docker):
     exception = URLError(reason=None)
     with patch('check_docker.check_docker.get_container_image_id', return_value='AAA'), \
          patch('check_docker.check_docker.get_container_image_urls', return_value=('example.com/foo',)), \
+         patch('check_docker.check_docker.get_container_info', return_value={'Image': 'sha256:867'}), \
+         patch('check_docker.check_docker.get_image_info', return_value={'Architecture': 'arm64'}), \
          patch('check_docker.check_docker.get_digest_from_registry', side_effect=exception), \
          pytest.raises(URLError):
         check_docker.check_version('container', tuple())
