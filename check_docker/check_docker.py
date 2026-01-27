@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# logging.basicConfig(level=logging.DEBUG)
+
 import argparse
 import json
 import logging
@@ -8,6 +8,7 @@ import os
 import re
 import socket
 import stat
+import sys
 import traceback
 from collections import deque, namedtuple, UserDict, defaultdict
 from concurrent import futures
@@ -138,13 +139,13 @@ class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
     https_response = http_response
 
     @staticmethod
-    def _get_outh2_token(www_authenticate_header):
+    def _get_oauth2_token(www_authenticate_header):
         auth_fields = dict(re.findall(r"""(?:(?P<key>[^ ,=]+)="([^"]+)")""", www_authenticate_header))
 
         auth_url = "{realm}?scope={scope}&service={service}".format(
-            realm=auth_fields['realm'],
-            scope=auth_fields['scope'],
-            service=auth_fields['service'],
+            realm=auth_fields.get('realm'),
+            scope=auth_fields.get('scope'),
+            service=auth_fields.get('service'),
         )
         token_request = Request(auth_url)
         token_request.add_header("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
@@ -160,7 +161,7 @@ class Oauth2TokenAuthHandler(HTTPBasicAuthHandler):
             raise HTTPError(full_url, 401, "Stopping Oauth2 failure loop for {}".format(full_url),
                             response.headers, response)
 
-        auth_token = self._get_outh2_token(www_authenticate_header)
+        auth_token = self._get_oauth2_token(www_authenticate_header)
 
         request.add_unredirected_header('Authorization', 'Bearer ' + auth_token)
         return self.parent.open(request, timeout=request.timeout)
@@ -276,16 +277,31 @@ def evaluate_numeric_thresholds(container, value, thresholds, name, short_name,
 @lru_cache(maxsize=None)
 def get_url(url):
     logger.debug("get_url: {}".format(url))
-    response = better_urllib_get.open(url, timeout=timeout)
-    logger.debug("get_url: {} {}".format(url, response.status))
-    return process_urllib_response(response), response.status
+    try:
+        response = better_urllib_get.open(url, timeout=timeout)
+        logger.debug("get_url: {} {}".format(url, response.status))
+        return process_urllib_response(response), response.status
+    except URLError as e:
+        unknown(f'Failed to connect to daemon: {e.reason}.')
+    # We have no result, so we can just exit
+    print_results()
+    sys.exit(rc)
 
 
 def process_urllib_response(response):
     response_bytes = response.read()
     body = response_bytes.decode('utf-8')
-    # logger.debug("BODY: {}".format(body))
-    return json.loads(body)
+    logger.debug(body)
+
+    resp = {}
+    try:
+        resp = json.loads(body)
+    except json.JSONDecodeError as e:
+        unknown(f'Unable to parse response.')
+        print_results()
+        sys.exit(rc)
+
+    return resp
 
 
 def get_container_info(name):
@@ -358,26 +374,39 @@ def normalize_image_name_to_manifest_url(image_name, insecure_registries):
 
     # Registry query url
     scheme = 'http' if parsed_url.registry.lower() in lower_insecure else 'https'
-    url = '{scheme}://{registry}/v2/{image_name}/manifests/{image_tag}'.format(scheme=scheme,
+    url = '{scheme}://{registry}/v2/{image_name}/manifests'.format(scheme=scheme,
                                                                                registry=parsed_url.registry,
-                                                                               image_name=parsed_url.name,
-                                                                               image_tag=parsed_url.tag)
-    return url, parsed_url.registry
+                                                                               image_name=parsed_url.name)
+    image_tag = parsed_url.tag
+
+    return url, image_tag, parsed_url.registry
 
 
 # Auth servers seem picky about being hit too hard. Can't figure out why. ;)
 # As result it is best to single thread this check
 # This is based on https://docs.docker.com/registry/spec/auth/token/#requesting-a-token
-def get_digest_from_registry(url):
+def get_digest_from_registry(url, image_tag, image_arch):
     logger.debug("get_digest_from_registry")
     # query registry
     # TODO: Handle logging in if needed
-    registry_info, status_code = get_url(url=url)
+    image_url = '{}/{}'.format(url, image_tag)
+    registry_info, status_code = get_url(url=image_url)
+
+    if 'manifests' in registry_info:
+        digest = find_digest_for_architecture(registry_info['manifests'], image_arch)
+        image_url = '{}/{}'.format(url, digest)
+        registry_info, status_code = get_url(url=image_url)
 
     if status_code != 200:
         raise RegistryError(response=registry_info)
+
     return registry_info['config'].get('digest', None)
 
+def find_digest_for_architecture(manifests, image_arch):
+    for manifest in manifests:
+        if 'platform' in manifest and manifest['platform']['architecture'] == image_arch:
+            return manifest.get('digest')
+    return None
 
 def set_rc(new_rc):
     global rc
@@ -520,7 +549,14 @@ def check_memory(container, thresholds):
     inspection = get_stats(container)
 
     # Subtracting cache to match what `docker stats` does.
-    adjusted_usage = inspection['memory_stats']['usage'] - inspection['memory_stats']['stats']['total_cache']
+    adjusted_usage = inspection['memory_stats']['usage']
+    if 'total_cache' in inspection['memory_stats']['stats']:
+        # CGroups v1 - https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
+        adjusted_usage -= inspection['memory_stats']['stats']['total_cache']
+    elif 'inactive_file' in inspection['memory_stats']['stats']:
+        # CGroups v2 - https://www.kernel.org/doc/Documentation/cgroup-v2.txt
+        adjusted_usage -= inspection['memory_stats']['stats']['inactive_file']
+
     if thresholds.units == '%':
         max = 100
         usage = int(100 * adjusted_usage / inspection['memory_stats']['limit'])
@@ -618,10 +654,14 @@ def check_version(container, insecure_registries):
         unknown('"{}" has last no repository tag. Is this anywhere else?'.format(container))
         return
 
-    url, registry = normalize_image_name_to_manifest_url(image_urls[0], insecure_registries)
-    logger.debug("Looking up image digest here {}".format(url))
+
+    container_image = get_container_info(container)['Image']
+    image_arch = get_image_info(container_image)['Architecture']
+
+    url, image_tag, registry = normalize_image_name_to_manifest_url(image_urls[0], insecure_registries)
+    logger.debug("Looking up image digest here {}/{}".format(url, image_tag))
     try:
-        registry_hash = get_digest_from_registry(url)
+        registry_hash = get_digest_from_registry(url, image_tag, image_arch)
     except URLError as e:
         if hasattr(e.reason, 'reason') and e.reason.reason == 'UNKNOWN_PROTOCOL':
             unknown(
@@ -630,12 +670,12 @@ def check_version(container, insecure_registries):
             return
         elif hasattr(e.reason, 'strerror') and e.reason.strerror == 'nodename nor servname provided, or not known':
             unknown(
-                "Cannot reach registry for {} at {}".format(container, url))
+                "Cannot reach registry for {} at {}/{}".format(container, url, image_tag))
             return
         else:
             raise e
     except RegistryError as e:
-        unknown("Cannot check version, couldn't retrieve digest for {} while checking {}.".format(container, url))
+        unknown("Cannot check version, couldn't retrieve digest for {} while checking {}/{}.".format(container, url, image_tag))
         return
     logger.debug("Image digests, local={} remote={}".format(image_id, registry_hash))
     if registry_hash == image_id:
@@ -766,7 +806,7 @@ def process_args(args):
                         action='store',
                         type=str,
                         metavar='WARN:CRIT',
-                        help='Check cpu usage percentage taking into account any limits.')
+                        help='Check cpu usage percentage taking into account any limits. Valid values are 0 - 100.')
 
     # Memory
     parser.add_argument('--memory',
@@ -842,12 +882,21 @@ def process_args(args):
                         action='store_true',
                         help='Suppress performance data. Reduces output when performance data is not being used.')
 
+    # Debug logging
+    parser.add_argument('--debug',
+                        dest='debug',
+                        action='store_true',
+                        help='Enable debug logging.')
+
     parser.add_argument('-V', action='version', version='%(prog)s {}'.format(__version__))
 
     if len(args) == 0:
         parser.print_help()
 
     parsed_args = parser.parse_args(args=args)
+
+    if parsed_args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     global timeout
     timeout = parsed_args.timeout
@@ -892,10 +941,10 @@ def print_results():
         if len(filtered_messages) == 0:
             messages_concat = 'OK'
         else:
-            messages_concat = '; '.join(filtered_messages)
+            messages_concat = '\n'.join(filtered_messages)
 
     else:
-        messages_concat = '; '.join(messages)
+        messages_concat = '\n'.join(messages)
 
     if no_performance or len(performance_data) == 0:
         print(messages_concat)
@@ -919,7 +968,7 @@ def perform_checks(raw_args):
     no_ok = args.no_ok
 
     global no_performance
-    no_performance = args.no_ok
+    no_performance = args.no_performance
 
     if socketfile_permissions_failure(args):
         unknown("Cannot access docker socket file. User ID={}, socket file={}".format(os.getuid(), args.connection))
@@ -934,7 +983,6 @@ def perform_checks(raw_args):
         return
 
     # Here is where all the work happens
-    #############################################################################################
     containers = get_containers(args.containers, args.present)
 
     if len(containers) == 0 and not args.present:

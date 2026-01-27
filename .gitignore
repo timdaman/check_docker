@@ -83,23 +83,14 @@ celerybeat-schedule
 venv/
 ENV/
 
-# Spyder project settings
+# Editors
 .spyderproject
-
-# Rope project settings
 .ropeproject
-
-.idea
-
-
-## File-based project format:
 *.iws
-
-## Plugin-specific files:
-
-# IntelliJ
+.idea
 /out/
-
+\#*
+.\#*
 
 # JIRA plugin
 atlassian-ide-plugin.xml
@@ -118,6 +109,7 @@ cr-sess1.json
 
 
 testing_tools/vagrant/.vagrant
+.vagrant
 !check_docker/
 
 .DS_Store
