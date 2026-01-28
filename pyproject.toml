@@ -4,7 +4,7 @@ build-backend = "poetry.masonry.api"
 
 [tool.poetry]
 name = "check_docker"
-version = "2.2.2"
+version = "2.3.0"
 description = "Nagios/NRPE compatible plugins for checking Docker based services"
 license = "GPL-3.0"
 authors = ["Tim Laurence <timdaman@gmail.com>"]
@@ -28,6 +28,3 @@ packages = [
 [tool.poetry.scripts]
 check_docker = "check_docker.check_docker:main"
 check_swarm = "check_docker.check_swarm:main"
-
-
-
