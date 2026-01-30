@@ -134,7 +134,7 @@ check_swarm Usage
                         [--connection [/<path to>/docker.socket|<ip/host address>:<port>]
                         | --secure-connection [<ip/host address>:<port>]]
                         [--timeout TIMEOUT]
-                        (--swarm | --service SERVICE [SERVICE ...] | --ignore_paused)
+                        (--swarm | --service SERVICE [SERVICE ...] | --ignore-paused)
                         [-V]
 
   Check docker swarm.
@@ -151,7 +151,7 @@ check_swarm Usage
     --service SERVICE [SERVICE ...]
                           One or more RegEx that match the names of the
                           services(s) to check.
-    --ignore_paused       Don't require global services to be running on paused nodes
+    --ignore-paused       Don't require global services to be running on paused nodes
     -V                    show program's version number and exit
 
 Gotchas
