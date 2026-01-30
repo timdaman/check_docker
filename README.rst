@@ -93,6 +93,9 @@ check_docker Usage
                           One or more RegEx that match the names of the
                           container(s) to check. If omitted all containers are
                           checked. (default: ['all'])
+    --exclude-containers EXCLUDECONTAINERS [EXCLUDECONTAINERS ...]
+                          One or more containers to exclude.
+
     --present             Modifies --containers so that each RegEx must match at
                           least one container.
     --threads THREADS     This + 1 is the maximum number of concurent

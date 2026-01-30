@@ -593,6 +593,11 @@ def test_get_containers_2(check_docker, sample_containers_json, mock_get_contain
             container_list = check_docker.get_containers(['name.*'], False)
             assert container_list == {'name1', 'name2'}
 
+def test_get_containers_2_withexclude(check_docker, sample_containers_json, mock_get_container_info):
+    with patch('check_docker.check_docker.get_url', return_value=(sample_containers_json, 200)):
+        with patch('check_docker.check_docker.get_container_info', side_effect=mock_get_container_info):
+            container_list = check_docker.get_containers(['name.*'], False, ['name2'])
+            assert container_list == {'name1'}
 
 def test_get_containers_3(check_docker, sample_containers_json, mock_get_container_info):
     check_docker.rc = -1
@@ -612,7 +617,6 @@ def test_get_containers_4(check_docker, sample_containers_json, mock_get_contain
             container_list = check_docker.get_containers({'foo'}, True)
             assert container_list == set()
             assert patched.call_count == 1
-
 
 def test_socketfile_failure_false(check_docker, fs):
     fs.create_file('/tmp/socket', contents='', st_mode=(stat.S_IFSOCK | 0o666))
