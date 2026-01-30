@@ -31,7 +31,7 @@ def active_node():
 
 @pytest.fixture
 def paused_node():
-    return {"ID": 43, 'Spec': {'Availability': 'paused'}}
+    return {"ID": 43, 'Spec': {'Availability': 'pause'}}
 
 
 @pytest.fixture
@@ -313,7 +313,7 @@ def test_check_services_global_ignore_paused(check_swarm, fs):
 @pytest.mark.parametrize("service_list, ignore_paused, expected_rc", (
         ([active_node_task, paused_node_task, drain_node_task], False, cs.OK_RC),
         ([active_node_task, drain_node_task], False, cs.CRITICAL_RC),
-        ([active_node_task, paused_node_task], False, cs.OK_RC),
+        ([active_node_task, paused_node_task], True, cs.OK_RC),
         ([active_node_task], False, cs.CRITICAL_RC),
         ([paused_node_task], False, cs.CRITICAL_RC),
         ([], False, cs.CRITICAL_RC),
