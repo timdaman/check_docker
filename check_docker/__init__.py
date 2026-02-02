@@ -1,2 +1,2 @@
-"""Nagios/NRPE compatible plugins for checking docker based services"""
-__version__ = "2.2.2"
+"""Nagios/NRPE compatible plugins for checking Docker based services"""
+__version__ = "2.3.0"

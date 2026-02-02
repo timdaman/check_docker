@@ -26,7 +26,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2019"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.2.2"
+__version__ = "2.3.0"
 
 '''
 nrpe compatible check for docker containers.
@@ -824,7 +824,7 @@ def process_args(args):
                         action='store',
                         type=str,
                         metavar='WARN:CRIT',
-                        help='Check cpu usage percentage taking into account any limits. Valid values are 0 - 100.')
+                        help='Check cpu usage percentage taking into account any limits.')
 
     # Memory
     parser.add_argument('--memory',

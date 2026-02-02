@@ -20,7 +20,7 @@ __author__ = 'Tim Laurence'
 __copyright__ = "Copyright 2019"
 __credits__ = ['Tim Laurence']
 __license__ = "GPL"
-__version__ = "2.2.2"
+__version__ = "2.3.0"
 
 '''
 nrpe compatible check for docker swarm
@@ -299,7 +299,7 @@ def process_args(args):
                              dest='swarm',
                              default=None,
                              action='store_true',
-                             help='Check swarm status')
+                             help='Check whether or not this node is connected to a swarm')
 
     # Service
     swarm_group.add_argument('--service',
