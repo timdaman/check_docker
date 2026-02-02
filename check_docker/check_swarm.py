@@ -104,7 +104,7 @@ def process_urllib_response(response):
     try:
         resp = json.loads(body)
     except json.JSONDecodeError as e:
-        unknown(f'Unable to parse response.')
+        unknown(f'Unable to parse response. {e}')
         print_results()
         sys.exit(rc)
 
@@ -118,7 +118,7 @@ def get_service_info(name):
     return get_url(daemon + '/services/{service}'.format(service=name))
 
 def get_service_tasks(name):
-    tasks, status = get_url(daemon + '/tasks?filters={{"name":{{"{service}":true}}}}'.format(service=name))
+    tasks, _ = get_url(daemon + '/tasks?filters={{"name":{{"{service}":true}}}}'.format(service=name))
     return tasks
 
 def get_nodes():
@@ -130,7 +130,7 @@ def get_services(names):
     if status == 406:
         critical("Error checking service status, node is not in swarm mode")
         return []
-    elif status not in HTTP_GOOD_CODES:
+    if status not in HTTP_GOOD_CODES:
         unknown("Could not retrieve service info")
         return []
 
@@ -187,7 +187,7 @@ def check_swarm():
         unknown('Could not retrieve swarm info')
         return
 
-    if not 'Swarm' in content:
+    if 'Swarm' not in content:
         unknown('No swarm status available')
         return
 
@@ -207,7 +207,7 @@ def process_global_service(name, ignore_paused=False):
         bad_node_states.add('paused')
 
     # Get all the nodes we care about based on their state
-    node_list, status = get_nodes()
+    node_list, _ = get_nodes()
     node_index = set()
     for node in node_list:
         if node['Spec']['Availability'] in bad_node_states:
@@ -244,7 +244,7 @@ def process_replicated_service(name, replicas_desired):
 
 def check_service(name, ignore_paused=False):
     # get service mode
-    service_info, status = get_service_info(name)
+    service_info, _ = get_service_info(name)
     mode_info = service_info['Spec']['Mode']
 
     # if global ensure one per node
@@ -356,8 +356,8 @@ def socketfile_permissions_failure(parsed_args):
                     and stat.S_ISSOCK(os.stat(parsed_args.connection).st_mode)
                     and os.access(parsed_args.connection, os.R_OK)
                     and os.access(parsed_args.connection, os.W_OK))
-    else:
-        return False
+
+    return False
 
 
 def print_results():
@@ -389,7 +389,7 @@ def perform_checks(raw_args):
 
 def main():
     perform_checks(argv[1:])
-    exit(rc)
+    sys.exit(rc)
 
 
 if __name__ == '__main__':
