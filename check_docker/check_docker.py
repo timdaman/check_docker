@@ -551,7 +551,10 @@ def check_memory(container, thresholds):
 
     inspection = get_stats(container)
 
-    # Subtracting cache to match what `docker stats` does.
+    # Workaround for Podman, since it doesn't provide the stats field
+    if 'stats' not in inspection['memory_stats'].keys(): inspection['memory_stats']['stats'] = {'total_cache': 0}
+
+    # # Subtracting cache to match what `docker stats` does.
     adjusted_usage = inspection['memory_stats']['usage']
     if 'total_cache' in inspection['memory_stats']['stats']:
         # CGroups v1 - https://www.kernel.org/doc/Documentation/cgroup-v1/memory.txt
@@ -714,6 +717,9 @@ def calculate_cpu_capacity_precentage(info, stats):
         available_limit_ratio = 1
     else:
         available_limit_ratio = (period * num_cpus) / quota
+
+    # Workaround for Podman, since it doesn't provide the field
+    if 'system_cpu_usage' not in stats['precpu_stats'].keys(): stats['precpu_stats']['system_cpu_usage'] = 0
 
     cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
     system_delta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']

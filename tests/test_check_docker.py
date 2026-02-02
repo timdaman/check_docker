@@ -257,6 +257,7 @@ def test_check_health(check_docker, response, expected_status):
         ({'limit': 10, 'usage': 1, 'stats': {'total_cache': 1}}, 20, 30, '%', cd.OK_RC),
         ({'limit': 10, 'usage': 3, 'stats': {'total_cache': 1}}, 20, 30, '%', cd.WARNING_RC),
         ({'limit': 10, 'usage': 4, 'stats': {'total_cache': 1}}, 20, 30, '%', cd.CRITICAL_RC),
+        ({'limit': 10, 'usage': 4}, 20, 30, '%', cd.CRITICAL_RC),
         ({'limit': 10, 'usage': 4, 'stats': {'total_cache': 1}}, 20, 30, 'BAD_UNITS', cd.UNKNOWN_RC),
 ))
 def test_check_memory(check_docker_with_units, memory_stats, warn, crit, units, expected_status):
