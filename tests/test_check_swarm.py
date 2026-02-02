@@ -72,8 +72,8 @@ def test_get_url(check_swarm, monkeypatch):
 
 def test_get_swarm_status(check_swarm):
     with patch('check_docker.check_swarm.get_url', return_value=('', 999)):
-        response = check_swarm.get_swarm_status()
-        assert response == 999
+        response, status = check_swarm.get_swarm_status()
+        assert status == 999
 
 
 def test_get_service_info(check_swarm):
@@ -243,7 +243,7 @@ def test_check_swarm_called(check_swarm, fs):
 def test_check_swarm_results_OK(check_swarm, fs):
     fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--swarm']
-    with patch('check_docker.check_swarm.get_swarm_status', return_value=200):
+    with patch('check_docker.check_swarm.get_swarm_status', return_value=({'Swarm': {'LocalNodeState': 'active'}}, 200)):
         check_swarm.perform_checks(args)
         assert check_swarm.rc == cs.OK_RC
 
@@ -251,9 +251,25 @@ def test_check_swarm_results_OK(check_swarm, fs):
 def test_check_swarm_results_CRITICAL(check_swarm, fs):
     fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
     args = ['--swarm']
-    with patch('check_docker.check_swarm.get_swarm_status', return_value=406):
+    with patch('check_docker.check_swarm.get_swarm_status', return_value=({'Swarm': {'LocalNodeState': 'inactive'}}, 200)):
         check_swarm.perform_checks(args)
         assert check_swarm.rc == cs.CRITICAL_RC
+
+
+def test_check_swarm_results_WARNING(check_swarm, fs):
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    args = ['--swarm']
+    with patch('check_docker.check_swarm.get_swarm_status', return_value=({'Swarm': {'LocalNodeState': 'pending'}}, 200)):
+        check_swarm.perform_checks(args)
+        assert check_swarm.rc == cs.WARNING_RC
+
+
+def test_check_swarm_results_UNKNOWN(check_swarm, fs):
+    fs.create_file(check_swarm.DEFAULT_SOCKET, contents='', st_mode=(stat.S_IFSOCK | 0o666))
+    args = ['--swarm']
+    with patch('check_docker.check_swarm.get_swarm_status', return_value=({}, 200)):
+        check_swarm.perform_checks(args)
+        assert check_swarm.rc == cs.UNKNOWN_RC
 
 
 def test_check_service_called(check_swarm, fs):

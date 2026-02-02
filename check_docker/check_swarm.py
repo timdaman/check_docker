@@ -112,18 +112,14 @@ def process_urllib_response(response):
 
 
 def get_swarm_status():
-    content, status = get_url(daemon + '/swarm')
-    return status
-
+    return get_url(daemon + '/info')
 
 def get_service_info(name):
     return get_url(daemon + '/services/{service}'.format(service=name))
 
-
 def get_service_tasks(name):
     tasks, status = get_url(daemon + '/tasks?filters={{"name":{{"{service}":true}}}}'.format(service=name))
     return tasks
-
 
 def get_nodes():
     return get_url(daemon + '/nodes')
@@ -186,9 +182,23 @@ def unknown(message):
 # Checks
 #############################################################################################
 def check_swarm():
-    status = get_swarm_status()
-    process_url_status(status, ok_msg='Node is in a swarm',
-                       critical_msg='Node is not in a swarm', unknown_msg='Error accessing swarm info')
+    content, status = get_swarm_status()
+    if status not in HTTP_GOOD_CODES:
+        unknown('Could not retrieve swarm info')
+        return
+
+    if not 'Swarm' in content:
+        unknown('No swarm status available')
+        return
+
+    state = content['Swarm'].get('LocalNodeState')
+
+    if state == 'active':
+        ok(f'Node is in a swarm. Local node status: {state}')
+    elif state == 'pending':
+        warning(f'Node is not active in swarm. Local node status: {state}')
+    else:
+        critical(f'Node is not in a swarm. Local node status: {state}')
 
 
 def process_global_service(name, ignore_paused=False):
