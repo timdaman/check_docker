@@ -299,7 +299,7 @@ def process_args(args):
                              dest='swarm',
                              default=None,
                              action='store_true',
-                             help='Check swarm status')
+                             help='Check whether or not this node is connected to a swarm')
 
     # Service
     swarm_group.add_argument('--service',

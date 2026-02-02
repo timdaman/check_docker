@@ -824,7 +824,7 @@ def process_args(args):
                         action='store',
                         type=str,
                         metavar='WARN:CRIT',
-                        help='Check cpu usage percentage taking into account any limits. Valid values are 0 - 100.')
+                        help='Check cpu usage percentage taking into account any limits.')
 
     # Memory
     parser.add_argument('--memory',

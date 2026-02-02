@@ -97,7 +97,7 @@ check_docker Usage
     --threads THREADS     This + 1 is the maximum number of concurent
                           threads/network connections. (default: 10)
     --cpu WARN:CRIT       Check cpu usage percentage taking into account any
-                          limits. Valid values are 0 - 100.
+                          limits.
     --memory WARN:CRIT:UNITS
                           Check memory usage taking into account any limits.
                           Valid values for units are %,B,KB,MB,GB.
@@ -143,7 +143,7 @@ check_swarm Usage
     --secure-connection [<ip/host address>:<port>]
                           Where to find TLS protected docker daemon socket.
     --timeout TIMEOUT     Connection timeout in seconds. (default: 10.0)
-    --swarm               Check swarm status
+    --swarm               Check whether or not this node is connected to a swarm
     --service SERVICE [SERVICE ...]
                           One or more RegEx that match the names of the
                           services(s) to check.
