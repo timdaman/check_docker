@@ -1,7 +1,7 @@
 .PHONY: lint test
 
 lint:
-	python -m pylint check_docker/
+	python3 -m pylint check_docker/
 test:
 	py.test -v
 coverage:
