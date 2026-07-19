@@ -575,13 +575,15 @@ def check_memory(container, thresholds):
 
 
 @multithread_execution()
-def check_status(container, desired_state):
-    normized_desired_state = desired_state.lower()
+def check_status(container, desired_states):
+    normalized_desired_states = [desired_state.lower() for desired_state in desired_states]
     normalized_state = normalize_state(get_state(container)).lower()
-    if normized_desired_state != normalized_state:
-        critical("{} state is not {}".format(container, desired_state))
+    normalized_desired_state_str = ",".join(normalized_desired_states)
+
+    if normalized_state not in normalized_desired_states:
+        critical("{} state is not {}".format(container, normalized_desired_state_str))
         return
-    ok("{} status is {}".format(container, desired_state))
+    ok("{} status is {}".format(container, normalized_desired_state_str))
 
 
 @multithread_execution()
@@ -837,7 +839,7 @@ def process_args(args):
     # State
     parser.add_argument('--status',
                         dest='status',
-                        action='store',
+                        action='append',
                         type=str,
                         help='Desired container status (running, exited, etc).')
 
