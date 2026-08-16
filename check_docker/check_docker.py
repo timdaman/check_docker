@@ -952,17 +952,25 @@ def socketfile_permissions_failure(parsed_args):
         return False
 
 
+def sort_by_severity(messages):
+    severities = ('CRITICAL: ', 'WARNING: ', 'UNKNOWN: ', 'OK: ')
+    rank = lambda message: next((index for index, severity in enumerate(severities)
+                                 if message.startswith(severity)), len(severities))
+    return sorted(messages, key=rank)
+
+
 def print_results():
+    # Nagios notifications only carry the first line of the plugin output
     if no_ok:
         # Remove all the "OK"s
         filtered_messages = [message for message in messages if not message.startswith('OK: ')]
         if len(filtered_messages) == 0:
             messages_concat = 'OK'
         else:
-            messages_concat = '\n'.join(filtered_messages)
+            messages_concat = ', '.join(sort_by_severity(filtered_messages))
 
     else:
-        messages_concat = '\n'.join(messages)
+        messages_concat = ', '.join(sort_by_severity(messages))
 
     if no_performance or len(performance_data) == 0:
         print(messages_concat)

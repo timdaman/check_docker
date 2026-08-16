@@ -360,8 +360,16 @@ def socketfile_permissions_failure(parsed_args):
     return False
 
 
+def sort_by_severity(messages):
+    severities = ('CRITICAL: ', 'WARNING: ', 'UNKNOWN: ', 'OK: ')
+    rank = lambda message: next((index for index, severity in enumerate(severities)
+                                 if message.startswith(severity)), len(severities))
+    return sorted(messages, key=rank)
+
+
 def print_results():
-    print('\n'.join(messages))
+    # Nagios notifications only carry the first line of the plugin output
+    print(', '.join(sort_by_severity(messages)))
 
 
 def perform_checks(raw_args):
