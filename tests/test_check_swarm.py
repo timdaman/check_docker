@@ -391,7 +391,9 @@ def test_check_not_swarm_service(check_swarm, fs):
 @pytest.mark.parametrize("messages, perf_data, expected", (
         ([], [], ''),
         (['TEST'], [], 'TEST'),
-        (['FOO', 'BAR'], [], 'FOO\nBAR'),
+        (['FOO', 'BAR'], [], 'FOO, BAR'),
+        (['OK: FOO', 'WARNING: BAR', 'CRITICAL: BAZ', 'UNKNOWN: QUX'], [],
+         'CRITICAL: BAZ, WARNING: BAR, UNKNOWN: QUX, OK: FOO'),
 ))
 def test_print_results(check_swarm, capsys, messages, perf_data, expected):
     check_swarm.messages = messages
